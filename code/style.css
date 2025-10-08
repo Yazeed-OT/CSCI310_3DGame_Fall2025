@@ -6,3 +6,27 @@ body {
     font-family: Verdana, Geneva, Tahoma, sans-serif;
 }
 
+#story-screen {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    background: radial-gradient(circle, rgba(0,0,0,0.9), rgba(0,0,0,1));
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    transition: opacity 1s ease;
+}
+
+#gameCanvas {
+    display: None;
+}
+
+#scoreboard {
+    position: absolute;
+    top: 10px;
+    left: 20px;
+    font-size: 1.3em;
+    color: antiquewhite;
+}
