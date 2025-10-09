@@ -1,18 +1,80 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset = "UTF-8">
-    <title>Breakout 3D</title>
+    <meta charset="UTF-8">
+    <title>Echoes of the Labyrinth</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="description" content="3D Maze Escape Game (Three.js)">
+    <!-- Favicon: assets folder is a sibling of this code/ folder -->
+    <link rel="icon" type="image/png" href="../assets/favicon.png">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="story-screen">
-        <h1>Echoes of the Labyrinth</h1>
+    <div id="story-screen" role="region" aria-labelledby="game-title">
+        <h1 id="game-title">Echoes of the Labyrinth</h1>
         <p id="story-text">
-            Welcome to Breakout 3D. You have now awaken inside a maze.
-            Collect the items you see and find the exit before the walls
-            close in.
-            <
+            Welcome to Breakout 3D. You have awakened inside a maze. Collect the items you see
+            and find the exit before the walls close in.
         </p>
+        <button id="start-btn" type="button" aria-controls="game-root">Start Game</button>
+    </div>
+
+    <div id="game-root" class="hidden" aria-live="polite">
+        <noscript>This game requires JavaScript.</noscript>
+        <!-- Canvas injected here -->
+    </div>
+
+    <script type="module">
+        const story = document.getElementById('story-screen');
+        const root = document.getElementById('game-root');
+        document.getElementById('start-btn').addEventListener('click', async () => {
+            story.classList.add('hidden');
+            root.classList.remove('hidden');
+
+            // Create canvas
+            const canvas = document.createElement('canvas');
+            canvas.id = 'game-canvas';
+            root.appendChild(canvas);
+
+            // TODO: replace with local build later
+            // Dynamically load Three.js (CDN for now)
+            try {
+                const THREE = await import('https://unpkg.com/three@0.160.1/build/three.module.js');
+                initScene(THREE, canvas);
+            } catch (e) {
+                root.textContent = 'Failed to load engine.';
+                console.error(e);
+            }
+        });
+
+        function initScene(THREE, canvas) {
+            const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x05060a);
+            const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0, 1.6, 3);
+
+            const light = new THREE.HemisphereLight(0xffffff, 0x222233, 1.0);
+            scene.add(light);
+
+            const geo = new THREE.BoxGeometry(1,1,1);
+            const mat = new THREE.MeshStandardMaterial({ color: 0x3d5afe });
+            const cube = new THREE.Mesh(geo, mat);
+            scene.add(cube);
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            (function animate(){
+                cube.rotation.y += 0.01;
+                renderer.render(scene, camera);
+                requestAnimationFrame(animate);
+            })();
+        }
+    </script>
 </body>
 </html>
