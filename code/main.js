@@ -1,3 +1,17 @@
+let started = false;
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !started) {
+    startGame();
+    started = true;
+  }
+});
+
+function startGame() {
+  document.getElementById("overlay").style.display = "none";
+  initMaze(); // function defined in maze.js
+}
+
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 import { PointerLockControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/PointerLockControls.js';
 import { mazeGrid } from './maze.js';

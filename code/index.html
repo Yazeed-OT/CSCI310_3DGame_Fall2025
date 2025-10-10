@@ -1,29 +1,37 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset = "UTF-8">
-    <title>Breakout 3D</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Maze Escape</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: black; color: white; font-family: sans-serif; }
+    #overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+    #startButton {
+      font-size: 20px;
+      padding: 10px 20px;
+      cursor: pointer;
+      border-radius: 10px;
+    }
+  </style>
 </head>
 <body>
-    <div id="story-screen">
-        <h1>Echoes of the Labyrinth</h1>
-        <p id="story-text">
-            Welcome to Breakout 3D. You have now awaken inside a maze.
-            Collect the items you see and find the exit before the walls
-            close in.
-            <br><br><strong>Press ENTER to begin your escape</strong>
-        </p>
-    </div>
+  <div id="overlay">
+    <h1>Press Enter to Start the Maze</h1>
+    <button id="startButton">Start Game</button>
+  </div>
 
-    <canvas id="gameCanvas"></canvas>
+  <!-- Include Three.js -->
+  <script type="module" src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"></script>
 
-    <script type="module" src="https//cdn.jsedlivr.net/npm/three@0.160.0/build/three.module.js"></script>
-    <script type="module" src="story.js"></script>
-    <script type="module" src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"></script>
-<script type="module" src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/PointerLockControls.js"></script>
-<script type="module" src="./maze.js"></script>
-<script type="module" src="./main.js"></script>
-        </p>
+  <!-- Your own scripts (order matters) -->
+  <script src="maze.js"></script>
+  <script src="main.js"></script>
 </body>
 </html>
