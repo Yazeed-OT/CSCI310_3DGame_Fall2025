@@ -31,17 +31,19 @@ function init() {
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0x000000);
   document.body.appendChild(renderer.domElement);
 
   clock = new THREE.Clock();
   playerVelocity = new THREE.Vector3();
 
   // Lighting
-  const light = new THREE.DirectionalLight(0xffffff, 1);
-  light.position.set(10, 10, 10);
-  scene.add(light);
+  // Better lighting: directional + ambient for contrast
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+  dirLight.position.set(10, 20, 10);
+  scene.add(dirLight);
 
-  const ambient = new THREE.AmbientLight(0x404040);
+  const ambient = new THREE.AmbientLight(0x303040, 0.9);
   scene.add(ambient);
 
   // Floor
@@ -78,8 +80,29 @@ function init() {
   // Timer
   startTimer();
 
-  // Controls
-  document.addEventListener('keydown', handleKey);
+  // Controls: use continuous movement (key state + per-frame) instead of single keydown
+  const keys = {
+    forward: false,
+    backward: false,
+    left: false,
+    right: false,
+  };
+
+  document.addEventListener('keydown', (e) => {
+    const k = e.key.toLowerCase();
+    if (k === 'w') keys.forward = true;
+    if (k === 's') keys.backward = true;
+    if (k === 'a') keys.left = true;
+    if (k === 'd') keys.right = true;
+  });
+  document.addEventListener('keyup', (e) => {
+    const k = e.key.toLowerCase();
+    if (k === 'w') keys.forward = false;
+    if (k === 's') keys.backward = false;
+    if (k === 'a') keys.left = false;
+    if (k === 'd') keys.right = false;
+  });
+
   window.addEventListener('resize', onWindowResize);
 
   // Add a subtle grid helper for orientation
@@ -89,28 +112,14 @@ function init() {
   scene.add(grid);
 }
 
-function handleKey(e) {
-  if (gameOver) return;
-  const speed = 0.1;
-  let moveX = 0, moveZ = 0;
-  if (e.key === 'w') moveZ = -speed;
-  if (e.key === 's') moveZ = speed;
-  if (e.key === 'a') moveX = -speed;
-  if (e.key === 'd') moveX = speed;
-
-  const newPos = camera.position.clone();
-  newPos.x += moveX;
-  newPos.z += moveZ;
-
-  if (!checkCollision(newPos)) {
-    camera.position.copy(newPos);
-  }
-}
+  // Movement is handled per-frame in animate using keys state
 
 function checkCollision(pos) {
+  // slightly smaller collision radius so the player can move through narrow corridors
+  const radius = 0.6;
   for (let wall of walls) {
     const dist = wall.position.distanceTo(pos);
-    if (dist < 0.8) return true; // Collision range
+    if (dist < radius) return true;
   }
   return false;
 }
@@ -142,5 +151,32 @@ function onWindowResize() {
 
 function animate() {
   requestAnimationFrame(animate);
+  // update movement based on key state
+  const delta = clock.getDelta();
+  const moveSpeed = 3.0; // units per second
+  const move = new THREE.Vector3();
+  // forward/back along -z
+  if (typeof keys !== 'undefined') {
+    if (keys.forward) move.z -= moveSpeed * delta;
+    if (keys.backward) move.z += moveSpeed * delta;
+    if (keys.left) move.x -= moveSpeed * delta;
+    if (keys.right) move.x += moveSpeed * delta;
+  }
+
+  if (move.lengthSq() > 0) {
+    // transform movement by camera rotation (so WASD is camera-relative)
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    // build right vector
+    const right = new THREE.Vector3().crossVectors(camera.up, dir).normalize();
+    const forward = new THREE.Vector3(dir.x, 0, dir.z).normalize();
+    const worldMove = new THREE.Vector3();
+    worldMove.addScaledVector(forward, -move.z);
+    worldMove.addScaledVector(right, move.x);
+
+    const newPos = camera.position.clone().add(worldMove);
+    if (!checkCollision(newPos)) camera.position.copy(newPos);
+  }
+
   renderer.render(scene, camera);
 }
