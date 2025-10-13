@@ -14,7 +14,7 @@ function initMaze() {
   scene.add(light);
 
   // Maze grid (your own version goes here)
-  export const mazeGrid = [
+  const mazeGrid = [
     [1,1,1,1,1,1,1,1,1,1,1],
     [1,0,0,0,1,0,1,0,0,0,1],
     [1,0,1,0,1,0,1,0,1,0,1],
