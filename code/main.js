@@ -19,7 +19,11 @@ function init() {
   scene = new THREE.Scene();
 
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-  camera.position.set(1, 1.7, 1); // Starting position (slightly above ground)
+  // Place camera so the full maze is visible and point it at the maze center
+  const mazeWidth = mazeGrid[0].length;
+  const mazeDepth = mazeGrid.length;
+  camera.position.set(mazeWidth / 2, Math.max(mazeWidth, mazeDepth) * 0.9, mazeDepth * 1.2);
+  camera.lookAt(new THREE.Vector3(mazeWidth / 2, 0, mazeDepth / 2));
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -50,12 +54,16 @@ function init() {
     for (let x = 0; x < mazeGrid[z].length; x++) {
       if (mazeGrid[z][x] === 1) {
         const wall = new THREE.Mesh(wallGeo, wallMat);
+        // center walls on integer grid — use .5 to center on tile if desired
         wall.position.set(x, 1, z);
         scene.add(wall);
         walls.push(wall);
       }
     }
   }
+
+  // Debug: log how many walls were created
+  console.log('Maze size:', mazeWidth, 'x', mazeDepth, '- walls:', walls.length);
 
   // Timer
   startTimer();
