@@ -19,11 +19,15 @@ function init() {
   scene = new THREE.Scene();
 
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-  // Place camera so the full maze is visible and point it at the maze center
+  // Compute maze size
   const mazeWidth = mazeGrid[0].length;
   const mazeDepth = mazeGrid.length;
-  camera.position.set(mazeWidth / 2, Math.max(mazeWidth, mazeDepth) * 0.9, mazeDepth * 1.2);
-  camera.lookAt(new THREE.Vector3(mazeWidth / 2, 0, mazeDepth / 2));
+
+  // Start camera at the maze entrance (first-person-ish). This makes movement visible immediately.
+  const playerStartX = 1.5;
+  const playerStartZ = 1.5;
+  camera.position.set(playerStartX, 1.6, playerStartZ);
+  camera.lookAt(new THREE.Vector3(playerStartX, 0, playerStartZ + 1));
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -48,14 +52,20 @@ function init() {
   scene.add(floor);
 
   // Maze walls
-  const wallGeo = new THREE.BoxGeometry(1, 2, 1);
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0x00ff88 });
+  // Make a slightly taller wall and a professional light-blue material
+  const wallGeo = new THREE.BoxGeometry(1, 2.2, 1);
+  const wallMat = new THREE.MeshStandardMaterial({
+    color: 0x68b0ff, // light blue
+    roughness: 0.5,
+    metalness: 0.05,
+  });
+
   for (let z = 0; z < mazeGrid.length; z++) {
     for (let x = 0; x < mazeGrid[z].length; x++) {
       if (mazeGrid[z][x] === 1) {
         const wall = new THREE.Mesh(wallGeo, wallMat);
-        // center walls on integer grid — use .5 to center on tile if desired
-        wall.position.set(x, 1, z);
+        // center walls on tile centers
+        wall.position.set(x + 0.5, 1.1, z + 0.5);
         scene.add(wall);
         walls.push(wall);
       }
@@ -71,6 +81,12 @@ function init() {
   // Controls
   document.addEventListener('keydown', handleKey);
   window.addEventListener('resize', onWindowResize);
+
+  // Add a subtle grid helper for orientation
+  const grid = new THREE.GridHelper(Math.max(mazeWidth, mazeDepth) * 2, Math.max(mazeWidth, mazeDepth));
+  grid.material.opacity = 0.15;
+  grid.material.transparent = true;
+  scene.add(grid);
 }
 
 function handleKey(e) {
