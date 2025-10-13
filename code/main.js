@@ -29,17 +29,18 @@ function init() {
   scene = new THREE.Scene();
 
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-  // Compute maze size
+  // Compute maze size and tile size (scale) to make the maze larger
   const mazeWidth = mazeGrid[0].length;
   const mazeDepth = mazeGrid.length;
+  const tileSize = 2.0; // bigger tiles -> bigger maze
 
   // Default to an overhead camera so the map is visible after Enter
   camera.position.set(mazeWidth / 2, Math.max(mazeWidth, mazeDepth) * 0.9, mazeDepth * 1.2);
   camera.lookAt(new THREE.Vector3(mazeWidth / 2, 0, mazeDepth / 2));
 
-  // Player start (first-person) coordinates
-  const playerStartX = 1.5;
-  const playerStartZ = 1.5;
+  // Player start (first-person) coordinates (in tile units)
+  const playerStartX = 1.5 * tileSize;
+  const playerStartZ = 1.5 * tileSize;
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -67,24 +68,60 @@ function init() {
 
   // Maze walls
   // Make a slightly taller wall and a professional light-blue material
-  const wallGeo = new THREE.BoxGeometry(1, 2.2, 1);
+  const wallGeo = new THREE.BoxGeometry(tileSize, 2.2, tileSize);
   const wallMat = new THREE.MeshStandardMaterial({
     color: 0x68b0ff, // light blue
     roughness: 0.5,
     metalness: 0.05,
   });
 
+  // Prepare doors: choose two tile coordinates (entrance top, exit right)
+  // We'll clear those cells in the grid so the wall loop doesn't create a blocking wall, then create door meshes there.
+  const entranceTile = { x: 1, z: 0 };
+  const exitTile = { x: mazeWidth - 2, z: mazeDepth - 1 };
+  // modify the imported mazeGrid in-memory to remove the blocking wall where doors will be placed
+  if (mazeGrid[entranceTile.z] && typeof mazeGrid[entranceTile.z][entranceTile.x] !== 'undefined') {
+    mazeGrid[entranceTile.z][entranceTile.x] = 0;
+  }
+  if (mazeGrid[exitTile.z] && typeof mazeGrid[exitTile.z][exitTile.x] !== 'undefined') {
+    mazeGrid[exitTile.z][exitTile.x] = 0;
+  }
+
   for (let z = 0; z < mazeGrid.length; z++) {
     for (let x = 0; x < mazeGrid[z].length; x++) {
       if (mazeGrid[z][x] === 1) {
         const wall = new THREE.Mesh(wallGeo, wallMat);
-        // center walls on tile centers
-        wall.position.set(x + 0.5, 1.1, z + 0.5);
+        // center walls on tile centers and scale by tileSize
+        wall.position.set((x + 0.5) * tileSize, 1.1, (z + 0.5) * tileSize);
         scene.add(wall);
         walls.push(wall);
       }
     }
   }
+
+  // Door definitions
+  const doors = [];
+  const doorHeight = 2.0;
+  const doorThickness = tileSize * 0.2;
+  const doorWidth = tileSize * 0.9;
+
+  function makeDoor(tileX, tileZ, orientation = 'ns') {
+    const geom = new THREE.BoxGeometry(doorWidth, doorHeight, doorThickness);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x223344, roughness: 0.6 });
+    const door = new THREE.Mesh(geom, mat);
+    // place at tile center
+    door.position.set((tileX + 0.5) * tileSize, doorHeight / 2, (tileZ + 0.5) * tileSize);
+    if (orientation === 'ew') door.rotation.y = Math.PI / 2;
+    door.userData = { opening: false, opened: false };
+    scene.add(door);
+    doors.push(door);
+    walls.push(door); // treat door as blocking until opened
+    return door;
+  }
+
+  // create entrance and exit doors
+  const entranceDoor = makeDoor(entranceTile.x, entranceTile.z, 'ns');
+  const exitDoor = makeDoor(exitTile.x, exitTile.z, 'ns');
 
   // Debug: log how many walls were created
   console.log('Maze size:', mazeWidth, 'x', mazeDepth, '- walls:', walls.length);
