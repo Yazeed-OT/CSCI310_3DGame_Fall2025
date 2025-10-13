@@ -17,6 +17,9 @@ let keys = {
 // POV mode: 'overhead' or 'first'
 let pov = 'overhead';
 
+// doors array is global so animate() can update them
+let doors = [];
+
 // UI elements
 const timerDisplay = document.getElementById('timer');
 const gameOverText = document.getElementById('game-over');
@@ -59,11 +62,12 @@ function init() {
   const ambient = new THREE.AmbientLight(0x303040, 0.9);
   scene.add(ambient);
 
-  // Floor
-  const floorGeo = new THREE.PlaneGeometry(20, 20);
-  const floorMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+  // Floor scaled to maze size
+  const floorGeo = new THREE.PlaneGeometry(mazeWidth * tileSize * 1.5, mazeDepth * tileSize * 1.5);
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
   const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.rotation.x = -Math.PI / 2;
+  floor.position.set((mazeWidth * tileSize) / 2, 0, (mazeDepth * tileSize) / 2);
   scene.add(floor);
 
   // Maze walls
@@ -100,7 +104,8 @@ function init() {
   }
 
   // Door definitions
-  const doors = [];
+  // doors array (global) already declared; clear and reuse
+  doors = [];
   const doorHeight = 2.0;
   const doorThickness = tileSize * 0.2;
   const doorWidth = tileSize * 0.9;
@@ -122,6 +127,28 @@ function init() {
   // create entrance and exit doors
   const entranceDoor = makeDoor(entranceTile.x, entranceTile.z, 'ns');
   const exitDoor = makeDoor(exitTile.x, exitTile.z, 'ns');
+
+  // Interaction: press 'E' to open nearby door
+  document.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() === 'e') {
+      // find nearest door within interaction distance
+      const pos = camera.position;
+      let closest = null;
+      let closestDist = Infinity;
+      for (const d of doors) {
+        if (d.userData.opened) continue;
+        const dist = d.position.distanceTo(pos);
+        if (dist < closestDist) {
+          closestDist = dist;
+          closest = d;
+        }
+      }
+      if (closest && closestDist < tileSize * 1.4) {
+        // start opening animation
+        closest.userData.opening = true;
+      }
+    }
+  });
 
   // Debug: log how many walls were created
   console.log('Maze size:', mazeWidth, 'x', mazeDepth, '- walls:', walls.length);
@@ -172,6 +199,7 @@ function checkCollision(pos) {
   // slightly smaller collision radius so the player can move through narrow corridors
   const radius = 0.6;
   for (let wall of walls) {
+    // Walls may be door meshes — use bounding sphere distance roughly
     const dist = wall.position.distanceTo(pos);
     if (dist < radius) return true;
   }
@@ -230,6 +258,21 @@ function animate() {
 
     const newPos = camera.position.clone().add(worldMove);
     if (!checkCollision(newPos)) camera.position.copy(newPos);
+  }
+
+  // update doors (animate opening)
+  for (const d of doors) {
+    if (d.userData.opening && !d.userData.opened) {
+      // slide upward
+      d.position.y += 1.2 * delta; // open speed
+      if (d.position.y > 3.5) {
+        d.userData.opened = true;
+        d.userData.opening = false;
+        // remove from walls list so collision no longer checks it
+        const idx = walls.indexOf(d);
+        if (idx !== -1) walls.splice(idx, 1);
+      }
+    }
   }
 
   renderer.render(scene, camera);
