@@ -19,6 +19,14 @@ let pov = 'overhead';
 
 // doors array is global so animate() can update them
 let doors = [];
+// overhead look offset (camera position - lookAt target) preserved while panning
+let overheadOffset = null;
+// world tile size (scale)
+let tileSize = 2.0;
+// overhead center in world coords
+let overheadCenter = new THREE.Vector3(0,0,0);
+// player start in world coords
+let playerStart = new THREE.Vector3(0,1.6,0);
 
 // UI elements
 const timerDisplay = document.getElementById('timer');
@@ -35,15 +43,14 @@ function init() {
   // Compute maze size and tile size (scale) to make the maze larger
   const mazeWidth = mazeGrid[0].length;
   const mazeDepth = mazeGrid.length;
-  const tileSize = 2.0; // bigger tiles -> bigger maze
+  tileSize = 2.0; // bigger tiles -> bigger maze
 
   // Default to an overhead camera so the map is visible after Enter
   camera.position.set(mazeWidth / 2, Math.max(mazeWidth, mazeDepth) * 0.9, mazeDepth * 1.2);
   camera.lookAt(new THREE.Vector3(mazeWidth / 2, 0, mazeDepth / 2));
 
-  // Player start (first-person) coordinates (in tile units)
-  const playerStartX = 1.5 * tileSize;
-  const playerStartZ = 1.5 * tileSize;
+  // Player start (first-person) coordinates (in world coords)
+  playerStart.set(1.5 * tileSize, 1.6, 1.5 * tileSize);
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -186,11 +193,15 @@ function init() {
 
   window.addEventListener('resize', onWindowResize);
 
-  // Add a subtle grid helper for orientation
-  const grid = new THREE.GridHelper(Math.max(mazeWidth, mazeDepth) * 2, Math.max(mazeWidth, mazeDepth));
+  // Add a subtle grid helper for orientation (scaled to tileSize)
+  const grid = new THREE.GridHelper(Math.max(mazeWidth, mazeDepth) * tileSize * 2, Math.max(mazeWidth, mazeDepth));
   grid.material.opacity = 0.15;
   grid.material.transparent = true;
   scene.add(grid);
+
+  // set overhead center and offset for panning
+  overheadCenter.set((mazeWidth * tileSize) / 2, 0, (mazeDepth * tileSize) / 2);
+  overheadOffset = camera.position.clone().sub(new THREE.Vector3(overheadCenter.x, camera.position.y, overheadCenter.z));
 }
 
   // Movement is handled per-frame in animate using keys state
@@ -258,6 +269,22 @@ function animate() {
 
     const newPos = camera.position.clone().add(worldMove);
     if (!checkCollision(newPos)) camera.position.copy(newPos);
+  }
+
+  // overhead panning: when in overhead mode, pan the overheadCenter and update camera position
+  if (pov === 'overhead') {
+    const panSpeed = 4.0; // units per second
+    const pan = new THREE.Vector3();
+    if (keys.forward) pan.z -= panSpeed * delta;
+    if (keys.backward) pan.z += panSpeed * delta;
+    if (keys.left) pan.x -= panSpeed * delta;
+    if (keys.right) pan.x += panSpeed * delta;
+    if (pan.lengthSq() > 0) {
+      overheadCenter.add(pan);
+      const newCamPos = new THREE.Vector3(overheadCenter.x, overheadCenter.y + overheadOffset.y, overheadCenter.z).add(new THREE.Vector3(overheadOffset.x, 0, overheadOffset.z));
+      camera.position.copy(newCamPos);
+      camera.lookAt(new THREE.Vector3(overheadCenter.x, 0, overheadCenter.z));
+    }
   }
 
   // update doors (animate opening)
