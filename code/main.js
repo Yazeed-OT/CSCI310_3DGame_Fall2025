@@ -45,9 +45,15 @@ function init() {
   const mazeDepth = mazeGrid.length;
   tileSize = 2.0; // bigger tiles -> bigger maze
 
-  // Default to an overhead camera so the map is visible after Enter
-  camera.position.set(mazeWidth / 2, Math.max(mazeWidth, mazeDepth) * 0.9, mazeDepth * 1.2);
-  camera.lookAt(new THREE.Vector3(mazeWidth / 2, 0, mazeDepth / 2));
+  // Default to an overhead camera using world units (tileSize)
+  const worldCenterX = (mazeWidth * tileSize) / 2;
+  const worldCenterZ = (mazeDepth * tileSize) / 2;
+  const mazeMax = Math.max(mazeWidth, mazeDepth) * tileSize;
+  // Increase the overhead distance for a wider view
+  const overheadHeight = mazeMax * 1.4; // previously ~1.1x
+  const overheadDepth = mazeMax * 0.7;  // previously ~0.3x
+  camera.position.set(worldCenterX, overheadHeight, worldCenterZ + overheadDepth);
+  camera.lookAt(new THREE.Vector3(worldCenterX, 0, worldCenterZ));
 
   // Player start (first-person) coordinates (in world coords)
   playerStart.set(1.5 * tileSize, 1.6, 1.5 * tileSize);
@@ -174,12 +180,19 @@ function init() {
       // toggle POV
       if (pov === 'overhead') {
         pov = 'first';
-        camera.position.set(playerStartX, 1.6, playerStartZ);
-        camera.lookAt(new THREE.Vector3(playerStartX, 0, playerStartZ + 1));
+        // Move to first-person at playerStart (already in world units)
+        camera.position.set(playerStart.x, playerStart.y, playerStart.z);
+        camera.lookAt(new THREE.Vector3(playerStart.x, 0, playerStart.z + 1));
       } else {
         pov = 'overhead';
-        camera.position.set(mazeWidth / 2, Math.max(mazeWidth, mazeDepth) * 0.9, mazeDepth * 1.2);
-        camera.lookAt(new THREE.Vector3(mazeWidth / 2, 0, mazeDepth / 2));
+        // Re-establish overhead offset using world units and increased distance
+        const mazeMaxLocal = Math.max(mazeWidth, mazeDepth) * tileSize;
+        const height = mazeMaxLocal * 1.4;
+        const depth = mazeMaxLocal * 0.7;
+        overheadOffset = new THREE.Vector3(0, height, depth);
+        const camPos = overheadCenter.clone().add(overheadOffset);
+        camera.position.copy(camPos);
+        camera.lookAt(new THREE.Vector3(overheadCenter.x, 0, overheadCenter.z));
       }
     }
   });
@@ -199,9 +212,10 @@ function init() {
   grid.material.transparent = true;
   scene.add(grid);
 
-  // set overhead center and offset for panning
+  // set overhead center and offset for panning (use simple world-unit offset)
   overheadCenter.set((mazeWidth * tileSize) / 2, 0, (mazeDepth * tileSize) / 2);
-  overheadOffset = camera.position.clone().sub(new THREE.Vector3(overheadCenter.x, camera.position.y, overheadCenter.z));
+  // Keep a fixed offset so camera = overheadCenter + overheadOffset
+  overheadOffset = new THREE.Vector3(0, overheadHeight, overheadDepth);
 }
 
   // Movement is handled per-frame in animate using keys state
@@ -273,7 +287,7 @@ function animate() {
 
   // overhead panning: when in overhead mode, pan the overheadCenter and update camera position
   if (pov === 'overhead') {
-    const panSpeed = 4.0; // units per second
+    const panSpeed = tileSize * 1.8; // units per second scaled by tile
     const pan = new THREE.Vector3();
     if (keys.forward) pan.z -= panSpeed * delta;
     if (keys.backward) pan.z += panSpeed * delta;
@@ -281,7 +295,7 @@ function animate() {
     if (keys.right) pan.x += panSpeed * delta;
     if (pan.lengthSq() > 0) {
       overheadCenter.add(pan);
-      const newCamPos = new THREE.Vector3(overheadCenter.x, overheadCenter.y + overheadOffset.y, overheadCenter.z).add(new THREE.Vector3(overheadOffset.x, 0, overheadOffset.z));
+      const newCamPos = overheadCenter.clone().add(overheadOffset);
       camera.position.copy(newCamPos);
       camera.lookAt(new THREE.Vector3(overheadCenter.x, 0, overheadCenter.z));
     }
