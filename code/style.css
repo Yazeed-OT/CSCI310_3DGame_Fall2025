@@ -20,7 +20,7 @@ body {
 }
 
 #gameCanvas {
-    display: None;
+    display: none;
 }
 
 #scoreboard {

@@ -1,37 +1,56 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>3D Maze Escape</title>
-  <style>
-    body { margin: 0; overflow: hidden; background: black; color: white; font-family: sans-serif; }
-    #overlay {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      text-align: center;
-    }
-    #startButton {
-      font-size: 20px;
-      padding: 10px 20px;
-      cursor: pointer;
-      border-radius: 10px;
-    }
-  </style>
+    <meta charset="UTF-8" />
+    <title>Echoes of the Labyrinth</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="3D Maze Escape Game (Three.js)" />
+    <!-- Favicon: assets folder is a sibling of this code/ folder -->
+    <link rel="icon" type="image/png" href="../assets/favicon.png" />
+    <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="overlay">
-    <h1>Press Enter to Start the Maze</h1>
-    <button id="startButton">Start Game</button>
-  </div>
+    <div id="story-screen" role="region" aria-labelledby="game-title">
+        <h1 id="game-title">Echoes of the Labyrinth</h1>
+        <p id="story-text">
+            Welcome to Breakout 3D. You have now awaken inside a maze.
+            Collect the items you see and find the exit before the walls
+            close in.
+            <br /><br /><strong>Press ENTER to begin your escape</strong>
+        </p>
+    </div>
 
-  <!-- Include Three.js -->
-  <script type="module" src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"></script>
+    <!-- HUD elements expected by main.js -->
+    <div id="scoreboard">Time: <span id="timer">60</span></div>
+    <div id="game-over" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); font-size:2rem;">Game Over</div>
+    <button id="restart" style="display:none; position:absolute; top:60%; left:50%; transform:translateX(-50%);">Restart</button>
 
-  <!-- Your own scripts (order matters) -->
-  <script src="maze.js"></script>
-  <script src="main.js"></script>
+    <!-- Canvas is optional; main.js creates its own renderer canvas -->
+    <canvas id="gameCanvas" style="display:none;"></canvas>
+
+    <!-- Start game on ENTER, then dynamically load main.js -->
+    <script type="module">
+        let started = false;
+        const overlay = document.getElementById('story-screen');
+        function startGame() {
+            if (started) return;
+            started = true;
+            // Hide the overlay
+            overlay.style.opacity = '0';
+            overlay.style.pointerEvents = 'none';
+            overlay.style.transition = 'opacity 300ms ease';
+            setTimeout(() => (overlay.style.display = 'none'), 320);
+            // Lazy-load the actual game code
+            import('./main.js').catch((e) => {
+                console.error('Failed to start game:', e);
+                alert('Failed to start game. See console for details.');
+            });
+        }
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                startGame();
+            }
+        });
+    </script>
 </body>
 </html>
