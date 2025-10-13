@@ -6,6 +6,16 @@ let walls = [];
 let timer = 60;
 let timerInterval;
 let gameOver = false;
+// global key state (so animate can read it)
+let keys = {
+  forward: false,
+  backward: false,
+  left: false,
+  right: false,
+};
+
+// POV mode: 'overhead' or 'first'
+let pov = 'overhead';
 
 // UI elements
 const timerDisplay = document.getElementById('timer');
@@ -23,11 +33,13 @@ function init() {
   const mazeWidth = mazeGrid[0].length;
   const mazeDepth = mazeGrid.length;
 
-  // Start camera at the maze entrance (first-person-ish). This makes movement visible immediately.
+  // Default to an overhead camera so the map is visible after Enter
+  camera.position.set(mazeWidth / 2, Math.max(mazeWidth, mazeDepth) * 0.9, mazeDepth * 1.2);
+  camera.lookAt(new THREE.Vector3(mazeWidth / 2, 0, mazeDepth / 2));
+
+  // Player start (first-person) coordinates
   const playerStartX = 1.5;
   const playerStartZ = 1.5;
-  camera.position.set(playerStartX, 1.6, playerStartZ);
-  camera.lookAt(new THREE.Vector3(playerStartX, 0, playerStartZ + 1));
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -81,19 +93,24 @@ function init() {
   startTimer();
 
   // Controls: use continuous movement (key state + per-frame) instead of single keydown
-  const keys = {
-    forward: false,
-    backward: false,
-    left: false,
-    right: false,
-  };
-
   document.addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
     if (k === 'w') keys.forward = true;
     if (k === 's') keys.backward = true;
     if (k === 'a') keys.left = true;
     if (k === 'd') keys.right = true;
+    if (k === 'p') {
+      // toggle POV
+      if (pov === 'overhead') {
+        pov = 'first';
+        camera.position.set(playerStartX, 1.6, playerStartZ);
+        camera.lookAt(new THREE.Vector3(playerStartX, 0, playerStartZ + 1));
+      } else {
+        pov = 'overhead';
+        camera.position.set(mazeWidth / 2, Math.max(mazeWidth, mazeDepth) * 0.9, mazeDepth * 1.2);
+        camera.lookAt(new THREE.Vector3(mazeWidth / 2, 0, mazeDepth / 2));
+      }
+    }
   });
   document.addEventListener('keyup', (e) => {
     const k = e.key.toLowerCase();
