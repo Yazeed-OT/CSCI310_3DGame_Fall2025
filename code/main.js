@@ -8,16 +8,10 @@ let timerInterval;
 let gameOver = false;
 // global key state (so animate can read it)
 let keys = {
-  forward: false,
-  backward: false,
-  left: false,
-  right: false,
-  turnLeft: false,
-  turnRight: false,
-  panUp: false,
-  panDown: false,
-  panLeft: false,
-  panRight: false,
+  forward: false,      // ArrowUp
+  backward: false,     // ArrowDown
+  turnLeft: false,     // ArrowLeft
+  turnRight: false,    // ArrowRight
 };
 
 // POV mode: 'overhead' or 'first'
@@ -190,17 +184,11 @@ function init() {
 
   // Controls: use continuous movement (key state + per-frame) instead of single keydown
   document.addEventListener('keydown', (e) => {
-    const k = e.key.toLowerCase();
-    if (k === 'w') keys.forward = true;
-    if (k === 's') keys.backward = true;
-    if (k === 'a') keys.left = true;
-    if (k === 'd') keys.right = true;
-    if (k === 'z') keys.turnLeft = true;
-    if (k === 'c') keys.turnRight = true;
-    if (e.key === 'ArrowUp') keys.panUp = true;
-    if (e.key === 'ArrowDown') keys.panDown = true;
-    if (e.key === 'ArrowLeft') keys.panLeft = true;
-    if (e.key === 'ArrowRight') keys.panRight = true;
+    const k = e.key;
+    if (k === 'ArrowUp') keys.forward = true;
+    if (k === 'ArrowDown') keys.backward = true;
+    if (k === 'ArrowLeft') keys.turnLeft = true;
+    if (k === 'ArrowRight') keys.turnRight = true;
     if (k === 'p') {
       // toggle POV
       if (pov === 'overhead') {
@@ -224,17 +212,11 @@ function init() {
     }
   });
   document.addEventListener('keyup', (e) => {
-    const k = e.key.toLowerCase();
-    if (k === 'w') keys.forward = false;
-    if (k === 's') keys.backward = false;
-    if (k === 'a') keys.left = false;
-    if (k === 'd') keys.right = false;
-    if (k === 'z') keys.turnLeft = false;
-    if (k === 'c') keys.turnRight = false;
-    if (e.key === 'ArrowUp') keys.panUp = false;
-    if (e.key === 'ArrowDown') keys.panDown = false;
-    if (e.key === 'ArrowLeft') keys.panLeft = false;
-    if (e.key === 'ArrowRight') keys.panRight = false;
+    const k = e.key;
+    if (k === 'ArrowUp') keys.forward = false;
+    if (k === 'ArrowDown') keys.backward = false;
+    if (k === 'ArrowLeft') keys.turnLeft = false;
+    if (k === 'ArrowRight') keys.turnRight = false;
   });
 
 
@@ -279,28 +261,24 @@ function collidesAt(pos) {
 }
 
 function movePlayer(delta) {
-  // rotate with keys in both modes
-  const turnSpeed = 2.0; // rad/sec
-  if (keys.turnLeft) playerYaw -= turnSpeed * delta;
-  if (keys.turnRight) playerYaw += turnSpeed * delta;
+  // rotate with arrow keys
+  const turnSpeed = 2.2; // rad/sec
+  if (keys.turnLeft) playerYaw += turnSpeed * delta;   // left arrow turns left
+  if (keys.turnRight) playerYaw -= turnSpeed * delta;  // right arrow turns right
   player.rotation.y = playerYaw;
 
-  // movement (WASD relative to facing)
-  const baseSpeed = 3.0; // units/sec
-  const moveSpeed = keys.sprint ? baseSpeed * 1.8 : baseSpeed;
-  const local = new THREE.Vector3(
-    (keys.right ? 1 : 0) + (keys.left ? -1 : 0),
-    0,
-    (keys.backward ? 1 : 0) + (keys.forward ? -1 : 0)
-  );
-  if (local.lengthSq() === 0) return;
-  local.normalize();
-  const cos = Math.cos(playerYaw), sin = Math.sin(playerYaw);
-  const world = new THREE.Vector3(
-    local.x * cos - local.z * sin,
-    0,
-    local.x * sin + local.z * cos
-  ).multiplyScalar(moveSpeed * delta);
+  // movement: forward/back only (no strafing)
+  const moveSpeed = 3.0; // units/sec
+  let world = new THREE.Vector3();
+  if (keys.forward) {
+    world.x -= Math.sin(playerYaw) * moveSpeed * delta;
+    world.z -= Math.cos(playerYaw) * moveSpeed * delta;
+  }
+  if (keys.backward) {
+    world.x += Math.sin(playerYaw) * moveSpeed * delta;
+    world.z += Math.cos(playerYaw) * moveSpeed * delta;
+  }
+  if (world.lengthSq() === 0) return;
 
   const next = player.position.clone();
   // axis-separated resolution
@@ -344,25 +322,11 @@ function animate() {
   requestAnimationFrame(animate);
   // update movement based on key state
   const delta = clock.getDelta();
-  // Move the player in both modes; camera behavior differs by POV.
+  // Move the player (Arrow keys). Camera behavior differs by POV.
   movePlayer(delta);
 
   // overhead panning: when in overhead mode, pan the overheadCenter and update camera position
-  if (pov === 'overhead') {
-    const panSpeed = tileSize * 1.8; // units per second scaled by tile
-    const pan = new THREE.Vector3();
-    // Arrow keys pan the map in overhead
-    if (keys.panUp) pan.z -= panSpeed * delta;
-    if (keys.panDown) pan.z += panSpeed * delta;
-    if (keys.panLeft) pan.x -= panSpeed * delta;
-    if (keys.panRight) pan.x += panSpeed * delta;
-    if (pan.lengthSq() > 0) {
-      overheadCenter.add(pan);
-      const newCamPos = overheadCenter.clone().add(overheadOffset);
-      camera.position.copy(newCamPos);
-      camera.lookAt(new THREE.Vector3(overheadCenter.x, 0, overheadCenter.z));
-    }
-  }
+  // Overhead view no longer pans the map with keys; it stays centered on the board
 
   // Update camera position in first-person to follow player's head
   if (pov === 'first') {
