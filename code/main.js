@@ -268,7 +268,7 @@ function movePlayer(delta) {
   player.rotation.y = playerYaw;
 
   // movement: forward/back only (no strafing)
-  const moveSpeed = 3.0; // units/sec
+  const moveSpeed = tileSize * 2.0; // ~2 tiles per second for snappier movement
   let world = new THREE.Vector3();
   if (keys.forward) {
     world.x -= Math.sin(playerYaw) * moveSpeed * delta;
