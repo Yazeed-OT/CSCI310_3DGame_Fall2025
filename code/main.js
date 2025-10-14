@@ -5,7 +5,9 @@ let scene, camera, renderer, clock, playerVelocity;
 let walls = [];
 let timer = 60;
 let timerInterval;
-let gameOver = false;
+let gameOver = false; // timer ran out
+let won = false;      // reached the goal
+let controlsLocked = false; // prevent movement after win/lose
 // global key state (so animate can read it)
 let keys = {
   forward: false,      // ArrowUp
@@ -20,15 +22,19 @@ let pov = 'overhead';
 // Simple Roblox-like character
 let player;            // THREE.Group character root
 let playerYaw = 0;     // rotation around Y (radians)
-const playerSize = {   // half-extents for collision box
-  x: 0.45, // world units; scaled later by tileSize in create
+const playerSize = {   // half-extents for collision box (scaled by tileSize for x/z)
+  x: 0.35, // narrower to avoid blocking corridors
   y: 0.9,
-  z: 0.45
+  z: 0.35
 };
 let headHeight = 1.6;  // approximate camera eye level
 
 // doors array is global so animate() can update them
 let doors = [];
+let goalTorus = null; // goal trigger at exit tile
+// simple confetti system
+let confettiGroup = null;
+let confetti = []; // { mesh, velocity: THREE.Vector3, life }
 // overhead look offset (camera position - lookAt target) preserved while panning
 let overheadOffset = null;
 // world tile size (scale)
@@ -131,7 +137,7 @@ function init() {
   // Create player character (blocky Roblox-style)
   createPlayer();
 
-  // Door definitions
+  // Door definitions (entrance only)
   // doors array (global) already declared; clear and reuse
   doors = [];
   const doorHeight = 2.0;
@@ -152,9 +158,15 @@ function init() {
     return door;
   }
 
-  // create entrance and exit doors
+  // create entrance door only (exit is the goal area)
   const entranceDoor = makeDoor(entranceTile.x, entranceTile.z, 'ns');
-  const exitDoor = makeDoor(exitTile.x, exitTile.z, 'ns');
+
+  // Create a goal torus at the exit tile (no blocking wall/door here)
+  const torusGeo = new THREE.TorusGeometry(tileSize * 0.45, tileSize * 0.12, 12, 24);
+  const torusMat = new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0x221100, metalness: 0.2, roughness: 0.4 });
+  goalTorus = new THREE.Mesh(torusGeo, torusMat);
+  goalTorus.position.set((exitTile.x + 0.5) * tileSize, 1.2, (exitTile.z + 0.5) * tileSize);
+  scene.add(goalTorus);
 
   // Interaction: press 'E' to open nearby door
   document.addEventListener('keydown', (e) => {
@@ -187,10 +199,12 @@ function init() {
   // Controls: use continuous movement (key state + per-frame) instead of single keydown
   document.addEventListener('keydown', (e) => {
     const k = e.key;
-    if (k === 'ArrowUp') keys.forward = true;
-    if (k === 'ArrowDown') keys.backward = true;
-    if (k === 'ArrowLeft') keys.turnLeft = true;
-    if (k === 'ArrowRight') keys.turnRight = true;
+    if (!controlsLocked) {
+      if (k === 'ArrowUp') keys.forward = true;
+      if (k === 'ArrowDown') keys.backward = true;
+      if (k === 'ArrowLeft') keys.turnLeft = true;
+      if (k === 'ArrowRight') keys.turnRight = true;
+    }
     if (k === 'p') {
       // toggle POV
       if (pov === 'overhead') {
@@ -211,6 +225,10 @@ function init() {
         camera.position.copy(camPos);
         camera.lookAt(new THREE.Vector3(overheadCenter.x, 0, overheadCenter.z));
       }
+    }
+    if (k === 'r' || k === 'R') {
+      // simple reset: full page reload to restore initial state
+      window.location.reload();
     }
   });
   document.addEventListener('keyup', (e) => {
@@ -325,7 +343,7 @@ function animate() {
   // update movement based on key state
   const delta = clock.getDelta();
   // Move the player (Arrow keys). Camera behavior differs by POV.
-  movePlayer(delta);
+  if (!controlsLocked) movePlayer(delta);
 
   // overhead panning: when in overhead mode, pan the overheadCenter and update camera position
   // Overhead view no longer pans the map with keys; it stays centered on the board
@@ -353,12 +371,88 @@ function animate() {
     }
   }
 
+  // Spin the goal torus for visibility
+  if (goalTorus) {
+    goalTorus.rotation.x += delta * 1.2;
+    goalTorus.rotation.y += delta * 0.8;
+    // check win overlap on XZ plane
+    if (!won && !gameOver) {
+      const dx = player.position.x - goalTorus.position.x;
+      const dz = player.position.z - goalTorus.position.z;
+      const dist2 = dx*dx + dz*dz;
+      const triggerRadius = tileSize * 0.5;
+      if (dist2 < triggerRadius * triggerRadius) {
+        onWin();
+      }
+    }
+  }
+
+  // update confetti particles
+  if (confetti.length > 0) {
+    for (let i = confetti.length - 1; i >= 0; i--) {
+      const p = confetti[i];
+      // simple gravity
+      p.velocity.y -= 9.8 * delta * 0.6;
+      p.mesh.position.addScaledVector(p.velocity, delta);
+      // fade out
+      p.life -= delta;
+      const mat = p.mesh.material;
+      if (mat && mat.opacity !== undefined) {
+        mat.opacity = Math.max(0, p.life / 1.2);
+        mat.transparent = true;
+        mat.depthWrite = false;
+      }
+      if (p.life <= 0 || p.mesh.position.y < 0) {
+        scene.remove(p.mesh);
+        confetti.splice(i, 1);
+      }
+    }
+  }
+
   renderer.render(scene, camera);
 }
 
 // Helpers
 function forwardFromYaw() {
   return new THREE.Vector3(Math.sin(playerYaw), 0, Math.cos(playerYaw)).normalize();
+}
+
+function onWin() {
+  won = true;
+  controlsLocked = true;
+  clearInterval(timerInterval);
+  // update UI
+  if (gameOverText) {
+    gameOverText.textContent = 'YOU ESCAPED! Press R to restart';
+    gameOverText.style.display = 'block';
+  }
+  if (restartBtn) restartBtn.style.display = 'block';
+  // confetti burst at player position
+  spawnConfetti(player.position.clone().add(new THREE.Vector3(0, 1.5, 0)), 120);
+}
+
+function spawnConfetti(center, count = 100) {
+  if (!confettiGroup) {
+    confettiGroup = new THREE.Group();
+    scene.add(confettiGroup);
+  }
+  const colors = [0xff6b6b, 0x4ecdc4, 0xffd166, 0x95d5b2, 0xcaa8f5];
+  for (let i = 0; i < count; i++) {
+    const size = Math.random() * 0.12 + 0.06;
+    const geom = new THREE.PlaneGeometry(size, size);
+    const mat = new THREE.MeshStandardMaterial({ color: colors[i % colors.length], side: THREE.DoubleSide });
+    const m = new THREE.Mesh(geom, mat);
+    m.position.copy(center);
+    // random impulse
+    const theta = Math.random() * Math.PI * 2;
+    const up = Math.random() * 2 + 2.5;
+    const speed = Math.random() * 2 + 1.5;
+    const vx = Math.cos(theta) * speed;
+    const vz = Math.sin(theta) * speed;
+    const vy = up;
+    confettiGroup.add(m);
+    confetti.push({ mesh: m, velocity: new THREE.Vector3(vx, vy, vz), life: 1.2 });
+  }
 }
 
 // removed mouse-look pitch helper
