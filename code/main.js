@@ -12,6 +12,12 @@ let keys = {
   backward: false,
   left: false,
   right: false,
+  turnLeft: false,
+  turnRight: false,
+  panUp: false,
+  panDown: false,
+  panLeft: false,
+  panRight: false,
 };
 
 // POV mode: 'overhead' or 'first'
@@ -191,11 +197,17 @@ function init() {
     if (k === 'd') keys.right = true;
     if (k === 'q') keys.turnLeft = true;
     if (k === 'e') keys.turnRight = true;
+    // Arrow keys for overhead panning
+    if (e.key === 'ArrowUp') keys.panUp = true;
+    if (e.key === 'ArrowDown') keys.panDown = true;
+    if (e.key === 'ArrowLeft') keys.panLeft = true;
+    if (e.key === 'ArrowRight') keys.panRight = true;
     if (k === 'p') {
       // toggle POV
       if (pov === 'overhead') {
         pov = 'first';
         // snap camera to player's head
+        if (!player) return;
         camera.position.set(player.position.x, player.position.y + headHeight - 0.1, player.position.z);
         const f = forwardFromYaw();
         camera.lookAt(new THREE.Vector3().addVectors(camera.position, f));
@@ -220,6 +232,10 @@ function init() {
     if (k === 'd') keys.right = false;
     if (k === 'q') keys.turnLeft = false;
     if (k === 'e') keys.turnRight = false;
+    if (e.key === 'ArrowUp') keys.panUp = false;
+    if (e.key === 'ArrowDown') keys.panDown = false;
+    if (e.key === 'ArrowLeft') keys.panLeft = false;
+    if (e.key === 'ArrowRight') keys.panRight = false;
   });
 
   window.addEventListener('resize', onWindowResize);
@@ -327,17 +343,18 @@ function animate() {
   requestAnimationFrame(animate);
   // update movement based on key state
   const delta = clock.getDelta();
-  // Move the player (first-person mode only). In overhead we pan separately.
-  if (pov === 'first') movePlayer(delta);
+  // Move the player in both modes; camera behavior differs by POV.
+  movePlayer(delta);
 
   // overhead panning: when in overhead mode, pan the overheadCenter and update camera position
   if (pov === 'overhead') {
     const panSpeed = tileSize * 1.8; // units per second scaled by tile
     const pan = new THREE.Vector3();
-    if (keys.forward) pan.z -= panSpeed * delta;
-    if (keys.backward) pan.z += panSpeed * delta;
-    if (keys.left) pan.x -= panSpeed * delta;
-    if (keys.right) pan.x += panSpeed * delta;
+    // Use arrow keys so WASD always moves the player
+    if (keys.panUp) pan.z -= panSpeed * delta;
+    if (keys.panDown) pan.z += panSpeed * delta;
+    if (keys.panLeft) pan.x -= panSpeed * delta;
+    if (keys.panRight) pan.x += panSpeed * delta;
     if (pan.lengthSq() > 0) {
       overheadCenter.add(pan);
       const newCamPos = overheadCenter.clone().add(overheadOffset);
@@ -414,4 +431,5 @@ function createPlayer() {
   player = group;
   // collision box tuning
   headHeight = head.position.y; // eye height roughly
+  playerYaw = 0; // face +Z initially
 }
