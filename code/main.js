@@ -12,12 +12,7 @@ let keys = {
   backward: false,
   left: false,
   right: false,
-  turnLeft: false,
-  turnRight: false,
-  panUp: false,
-  panDown: false,
-  panLeft: false,
-  panRight: false,
+  sprint: false,
 };
 
 // POV mode: 'overhead' or 'first'
@@ -26,6 +21,8 @@ let pov = 'overhead';
 // Simple Roblox-like character
 let player;            // THREE.Group character root
 let playerYaw = 0;     // rotation around Y (radians)
+let lookPitch = 0;     // camera pitch in radians (first-person)
+const lookSensitivity = 0.0025; // radians per pixel
 const playerSize = {   // half-extents for collision box
   x: 0.45, // world units; scaled later by tileSize in create
   y: 0.9,
@@ -195,13 +192,7 @@ function init() {
     if (k === 's') keys.backward = true;
     if (k === 'a') keys.left = true;
     if (k === 'd') keys.right = true;
-  if (k === 'z') keys.turnLeft = true;
-  if (k === 'c') keys.turnRight = true;
-    // Arrow keys for overhead panning
-    if (e.key === 'ArrowUp') keys.panUp = true;
-    if (e.key === 'ArrowDown') keys.panDown = true;
-    if (e.key === 'ArrowLeft') keys.panLeft = true;
-    if (e.key === 'ArrowRight') keys.panRight = true;
+    if (e.key === 'Shift') keys.sprint = true;
     if (k === 'p') {
       // toggle POV
       if (pov === 'overhead') {
@@ -211,6 +202,10 @@ function init() {
         camera.position.set(player.position.x, player.position.y + headHeight - 0.1, player.position.z);
         const f = forwardFromYaw();
         camera.lookAt(new THREE.Vector3().addVectors(camera.position, f));
+        // Try to lock pointer for mouse-look
+        if (renderer?.domElement?.requestPointerLock) {
+          try { renderer.domElement.requestPointerLock(); } catch {}
+        }
       } else {
         pov = 'overhead';
         // Re-establish overhead offset using world units and increased distance
@@ -221,6 +216,9 @@ function init() {
         const camPos = overheadCenter.clone().add(overheadOffset);
         camera.position.copy(camPos);
         camera.lookAt(new THREE.Vector3(overheadCenter.x, 0, overheadCenter.z));
+        if (document.pointerLockElement) {
+          try { document.exitPointerLock(); } catch {}
+        }
       }
     }
   });
@@ -230,12 +228,24 @@ function init() {
     if (k === 's') keys.backward = false;
     if (k === 'a') keys.left = false;
     if (k === 'd') keys.right = false;
-  if (k === 'z') keys.turnLeft = false;
-  if (k === 'c') keys.turnRight = false;
-    if (e.key === 'ArrowUp') keys.panUp = false;
-    if (e.key === 'ArrowDown') keys.panDown = false;
-    if (e.key === 'ArrowLeft') keys.panLeft = false;
-    if (e.key === 'ArrowRight') keys.panRight = false;
+    if (e.key === 'Shift') keys.sprint = false;
+  });
+
+  // Click to lock pointer (mouse-look) when in first-person
+  renderer.domElement.addEventListener('click', () => {
+    if (pov === 'first' && renderer.domElement.requestPointerLock) {
+      try { renderer.domElement.requestPointerLock(); } catch {}
+    }
+  });
+  // Mouse-look handler
+  document.addEventListener('mousemove', (e) => {
+    if (pov !== 'first') return;
+    if (document.pointerLockElement !== renderer.domElement) return;
+    playerYaw += e.movementX * lookSensitivity;
+    lookPitch -= e.movementY * lookSensitivity; // invert for natural feel
+    const maxPitch = Math.PI / 2 - 0.1;
+    if (lookPitch > maxPitch) lookPitch = maxPitch;
+    if (lookPitch < -maxPitch) lookPitch = -maxPitch;
   });
 
   window.addEventListener('resize', onWindowResize);
@@ -279,14 +289,12 @@ function collidesAt(pos) {
 }
 
 function movePlayer(delta) {
-  // rotate
-  const turnSpeed = 2.0; // rad/sec
-  if (keys.turnLeft) playerYaw += turnSpeed * delta * -1;
-  if (keys.turnRight) playerYaw += turnSpeed * delta;
+  // yaw is driven by mouse-look in first-person; keep player mesh yaw synced
   player.rotation.y = playerYaw;
 
   // movement (WASD relative to facing)
-  const moveSpeed = 3.0; // units/sec
+  const baseSpeed = 3.0; // units/sec
+  const moveSpeed = keys.sprint ? baseSpeed * 1.8 : baseSpeed;
   const local = new THREE.Vector3(
     (keys.right ? 1 : 0) + (keys.left ? -1 : 0),
     0,
@@ -350,11 +358,11 @@ function animate() {
   if (pov === 'overhead') {
     const panSpeed = tileSize * 1.8; // units per second scaled by tile
     const pan = new THREE.Vector3();
-    // Use arrow keys so WASD always moves the player
-    if (keys.panUp) pan.z -= panSpeed * delta;
-    if (keys.panDown) pan.z += panSpeed * delta;
-    if (keys.panLeft) pan.x -= panSpeed * delta;
-    if (keys.panRight) pan.x += panSpeed * delta;
+    // In overhead, WASD pans the map; in first-person, WASD moves the player
+    if (keys.forward) pan.z -= panSpeed * delta;
+    if (keys.backward) pan.z += panSpeed * delta;
+    if (keys.left) pan.x -= panSpeed * delta;
+    if (keys.right) pan.x += panSpeed * delta;
     if (pan.lengthSq() > 0) {
       overheadCenter.add(pan);
       const newCamPos = overheadCenter.clone().add(overheadOffset);
@@ -366,7 +374,7 @@ function animate() {
   // Update camera position in first-person to follow player's head
   if (pov === 'first') {
     camera.position.set(player.position.x, player.position.y + headHeight - 0.1, player.position.z);
-    const f = forwardFromYaw();
+    const f = forwardFromYawPitch(playerYaw, lookPitch);
     const lookTarget = new THREE.Vector3().addVectors(camera.position, f);
     camera.lookAt(lookTarget);
   }
@@ -392,6 +400,13 @@ function animate() {
 // Helpers
 function forwardFromYaw() {
   return new THREE.Vector3(Math.sin(playerYaw), 0, Math.cos(playerYaw)).normalize();
+}
+
+function forwardFromYawPitch(yaw, pitch) {
+  const x = Math.sin(yaw) * Math.cos(pitch);
+  const y = Math.sin(pitch);
+  const z = Math.cos(yaw) * Math.cos(pitch);
+  return new THREE.Vector3(x, y, z).normalize();
 }
 
 function createPlayer() {
