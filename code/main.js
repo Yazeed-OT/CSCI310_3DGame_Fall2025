@@ -195,8 +195,8 @@ function init() {
     if (k === 's') keys.backward = true;
     if (k === 'a') keys.left = true;
     if (k === 'd') keys.right = true;
-    if (k === 'q') keys.turnLeft = true;
-    if (k === 'e') keys.turnRight = true;
+  if (k === 'z') keys.turnLeft = true;
+  if (k === 'c') keys.turnRight = true;
     // Arrow keys for overhead panning
     if (e.key === 'ArrowUp') keys.panUp = true;
     if (e.key === 'ArrowDown') keys.panDown = true;
@@ -230,8 +230,8 @@ function init() {
     if (k === 's') keys.backward = false;
     if (k === 'a') keys.left = false;
     if (k === 'd') keys.right = false;
-    if (k === 'q') keys.turnLeft = false;
-    if (k === 'e') keys.turnRight = false;
+  if (k === 'z') keys.turnLeft = false;
+  if (k === 'c') keys.turnRight = false;
     if (e.key === 'ArrowUp') keys.panUp = false;
     if (e.key === 'ArrowDown') keys.panDown = false;
     if (e.key === 'ArrowLeft') keys.panLeft = false;
