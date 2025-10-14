@@ -17,6 +17,16 @@ let keys = {
 // POV mode: 'overhead' or 'first'
 let pov = 'overhead';
 
+// Simple Roblox-like character
+let player;            // THREE.Group character root
+let playerYaw = 0;     // rotation around Y (radians)
+const playerSize = {   // half-extents for collision box
+  x: 0.45, // world units; scaled later by tileSize in create
+  y: 0.9,
+  z: 0.45
+};
+let headHeight = 1.6;  // approximate camera eye level
+
 // doors array is global so animate() can update them
 let doors = [];
 // overhead look offset (camera position - lookAt target) preserved while panning
@@ -56,7 +66,7 @@ function init() {
   camera.lookAt(new THREE.Vector3(worldCenterX, 0, worldCenterZ));
 
   // Player start (first-person) coordinates (in world coords)
-  playerStart.set(1.5 * tileSize, 1.6, 1.5 * tileSize);
+  playerStart.set(1.5 * tileSize, 1.1, 1.5 * tileSize);
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -115,6 +125,9 @@ function init() {
       }
     }
   }
+
+  // Create player character (blocky Roblox-style)
+  createPlayer();
 
   // Door definitions
   // doors array (global) already declared; clear and reuse
@@ -176,13 +189,16 @@ function init() {
     if (k === 's') keys.backward = true;
     if (k === 'a') keys.left = true;
     if (k === 'd') keys.right = true;
+    if (k === 'q') keys.turnLeft = true;
+    if (k === 'e') keys.turnRight = true;
     if (k === 'p') {
       // toggle POV
       if (pov === 'overhead') {
         pov = 'first';
-        // Move to first-person at playerStart (already in world units)
-        camera.position.set(playerStart.x, playerStart.y, playerStart.z);
-        camera.lookAt(new THREE.Vector3(playerStart.x, 0, playerStart.z + 1));
+        // snap camera to player's head
+        camera.position.set(player.position.x, player.position.y + headHeight - 0.1, player.position.z);
+        const f = forwardFromYaw();
+        camera.lookAt(new THREE.Vector3().addVectors(camera.position, f));
       } else {
         pov = 'overhead';
         // Re-establish overhead offset using world units and increased distance
@@ -202,14 +218,21 @@ function init() {
     if (k === 's') keys.backward = false;
     if (k === 'a') keys.left = false;
     if (k === 'd') keys.right = false;
+    if (k === 'q') keys.turnLeft = false;
+    if (k === 'e') keys.turnRight = false;
   });
 
   window.addEventListener('resize', onWindowResize);
 
   // Add a subtle grid helper for orientation (scaled to tileSize)
-  const grid = new THREE.GridHelper(Math.max(mazeWidth, mazeDepth) * tileSize * 2, Math.max(mazeWidth, mazeDepth));
+  const gridSize = Math.max(mazeWidth, mazeDepth) * tileSize * 1.5;
+  const gridDivisions = Math.max(mazeWidth, mazeDepth);
+  const grid = new THREE.GridHelper(gridSize, gridDivisions);
   grid.material.opacity = 0.15;
   grid.material.transparent = true;
+  // Center the grid on the maze/floor and lift slightly to avoid z-fighting
+  grid.position.set(worldCenterX, 0.01, worldCenterZ);
+  grid.material.depthWrite = false;
   scene.add(grid);
 
   // set overhead center and offset for panning (use simple world-unit offset)
@@ -220,15 +243,59 @@ function init() {
 
   // Movement is handled per-frame in animate using keys state
 
-function checkCollision(pos) {
-  // slightly smaller collision radius so the player can move through narrow corridors
-  const radius = 0.6;
-  for (let wall of walls) {
-    // Walls may be door meshes — use bounding sphere distance roughly
-    const dist = wall.position.distanceTo(pos);
-    if (dist < radius) return true;
+function getPlayerBoxAt(pos) {
+  const halfX = playerSize.x * tileSize;
+  const halfZ = playerSize.z * tileSize;
+  const halfY = playerSize.y; // height not scaled by tileSize (world units already)
+  const min = new THREE.Vector3(pos.x - halfX, pos.y - halfY, pos.z - halfZ);
+  const max = new THREE.Vector3(pos.x + halfX, pos.y + halfY, pos.z + halfZ);
+  return new THREE.Box3(min, max);
+}
+
+function collidesAt(pos) {
+  const pBox = getPlayerBoxAt(pos);
+  const wallBox = new THREE.Box3();
+  for (const w of walls) {
+    wallBox.setFromObject(w);
+    if (pBox.intersectsBox(wallBox)) return true;
   }
   return false;
+}
+
+function movePlayer(delta) {
+  // rotate
+  const turnSpeed = 2.0; // rad/sec
+  if (keys.turnLeft) playerYaw += turnSpeed * delta * -1;
+  if (keys.turnRight) playerYaw += turnSpeed * delta;
+  player.rotation.y = playerYaw;
+
+  // movement (WASD relative to facing)
+  const moveSpeed = 3.0; // units/sec
+  const local = new THREE.Vector3(
+    (keys.right ? 1 : 0) + (keys.left ? -1 : 0),
+    0,
+    (keys.backward ? 1 : 0) + (keys.forward ? -1 : 0)
+  );
+  if (local.lengthSq() === 0) return;
+  local.normalize();
+  const cos = Math.cos(playerYaw), sin = Math.sin(playerYaw);
+  const world = new THREE.Vector3(
+    local.x * cos - local.z * sin,
+    0,
+    local.x * sin + local.z * cos
+  ).multiplyScalar(moveSpeed * delta);
+
+  const next = player.position.clone();
+  // axis-separated resolution
+  next.x += world.x;
+  if (collidesAt(new THREE.Vector3(next.x, player.position.y, next.z))) {
+    next.x = player.position.x;
+  }
+  next.z += world.z;
+  if (collidesAt(new THREE.Vector3(next.x, player.position.y, next.z))) {
+    next.z = player.position.z;
+  }
+  player.position.copy(next);
 }
 
 function startTimer() {
@@ -260,30 +327,8 @@ function animate() {
   requestAnimationFrame(animate);
   // update movement based on key state
   const delta = clock.getDelta();
-  const moveSpeed = 3.0; // units per second
-  const move = new THREE.Vector3();
-  // forward/back along -z
-  if (typeof keys !== 'undefined') {
-    if (keys.forward) move.z -= moveSpeed * delta;
-    if (keys.backward) move.z += moveSpeed * delta;
-    if (keys.left) move.x -= moveSpeed * delta;
-    if (keys.right) move.x += moveSpeed * delta;
-  }
-
-  if (move.lengthSq() > 0) {
-    // transform movement by camera rotation (so WASD is camera-relative)
-    const dir = new THREE.Vector3();
-    camera.getWorldDirection(dir);
-    // build right vector
-    const right = new THREE.Vector3().crossVectors(camera.up, dir).normalize();
-    const forward = new THREE.Vector3(dir.x, 0, dir.z).normalize();
-    const worldMove = new THREE.Vector3();
-    worldMove.addScaledVector(forward, -move.z);
-    worldMove.addScaledVector(right, move.x);
-
-    const newPos = camera.position.clone().add(worldMove);
-    if (!checkCollision(newPos)) camera.position.copy(newPos);
-  }
+  // Move the player (first-person mode only). In overhead we pan separately.
+  if (pov === 'first') movePlayer(delta);
 
   // overhead panning: when in overhead mode, pan the overheadCenter and update camera position
   if (pov === 'overhead') {
@@ -299,6 +344,14 @@ function animate() {
       camera.position.copy(newCamPos);
       camera.lookAt(new THREE.Vector3(overheadCenter.x, 0, overheadCenter.z));
     }
+  }
+
+  // Update camera position in first-person to follow player's head
+  if (pov === 'first') {
+    camera.position.set(player.position.x, player.position.y + headHeight - 0.1, player.position.z);
+    const f = forwardFromYaw();
+    const lookTarget = new THREE.Vector3().addVectors(camera.position, f);
+    camera.lookAt(lookTarget);
   }
 
   // update doors (animate opening)
@@ -317,4 +370,48 @@ function animate() {
   }
 
   renderer.render(scene, camera);
+}
+
+// Helpers
+function forwardFromYaw() {
+  return new THREE.Vector3(Math.sin(playerYaw), 0, Math.cos(playerYaw)).normalize();
+}
+
+function createPlayer() {
+  const group = new THREE.Group();
+  // scale dimensions by tile size for width/depth
+  const torsoW = tileSize * 0.6, torsoH = 0.9, torsoD = tileSize * 0.35;
+  const limbW = tileSize * 0.22, limbD = tileSize * 0.22, limbH = 0.8;
+  const headSize = tileSize * 0.35;
+
+  const matTorso = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
+  const matLimb  = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
+  const matHead  = new THREE.MeshStandardMaterial({ color: 0xdeb887, roughness: 0.7 });
+
+  // Torso
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(torsoW, torsoH, torsoD), matTorso);
+  torso.position.y = torsoH / 2 + 0.2;
+  group.add(torso);
+  // Head
+  const head = new THREE.Mesh(new THREE.BoxGeometry(headSize, headSize, headSize), matHead);
+  head.position.y = torso.position.y + torsoH / 2 + headSize / 2 + 0.05;
+  group.add(head);
+  // Arms
+  const armL = new THREE.Mesh(new THREE.BoxGeometry(limbW, limbH, limbD), matTorso);
+  const armR = armL.clone();
+  armL.position.set(-torsoW / 2 - limbW / 2, torso.position.y + 0.05, 0);
+  armR.position.set( torsoW / 2 + limbW / 2, torso.position.y + 0.05, 0);
+  group.add(armL, armR);
+  // Legs
+  const legL = new THREE.Mesh(new THREE.BoxGeometry(limbW, limbH, limbD), matLimb);
+  const legR = legL.clone();
+  legL.position.set(-limbW * 0.6, limbH / 2, 0);
+  legR.position.set( limbW * 0.6, limbH / 2, 0);
+  group.add(legL, legR);
+
+  group.position.copy(playerStart);
+  scene.add(group);
+  player = group;
+  // collision box tuning
+  headHeight = head.position.y; // eye height roughly
 }
