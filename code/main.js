@@ -22,7 +22,7 @@ let doors = [];
 // overhead look offset (camera position - lookAt target) preserved while panning
 let overheadOffset = null;
 // world tile size (scale)
-let tileSize = 2.0;
+let tileSize = 3.0;
 // overhead center in world coords
 let overheadCenter = new THREE.Vector3(0,0,0);
 // player start in world coords
@@ -43,7 +43,7 @@ function init() {
   // Compute maze size and tile size (scale) to make the maze larger
   const mazeWidth = mazeGrid[0].length;
   const mazeDepth = mazeGrid.length;
-  tileSize = 2.0; // bigger tiles -> bigger maze
+  tileSize = 3.0; // bigger tiles -> bigger maze
 
   // Default to an overhead camera using world units (tileSize)
   const worldCenterX = (mazeWidth * tileSize) / 2;
