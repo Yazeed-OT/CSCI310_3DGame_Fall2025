@@ -33,6 +33,8 @@ let doors = [];
 let overheadOffset = null;
 // world tile size (scale)
 let tileSize = 3.0;
+// Player speed in tiles per second (tweak this to change movement speed)
+const PLAYER_SPEED_TPS = 3.5;
 // overhead center in world coords
 let overheadCenter = new THREE.Vector3(0,0,0);
 // player start in world coords
@@ -268,7 +270,7 @@ function movePlayer(delta) {
   player.rotation.y = playerYaw;
 
   // movement: forward/back only (no strafing)
-  const moveSpeed = tileSize * 2.0; // ~2 tiles per second for snappier movement
+  const moveSpeed = tileSize * PLAYER_SPEED_TPS; // tiles/sec -> world units/sec
   let world = new THREE.Vector3();
   if (keys.forward) {
     world.x -= Math.sin(playerYaw) * moveSpeed * delta;
