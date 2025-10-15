@@ -61,7 +61,7 @@ function init() {
   const floorMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
   const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.rotation.x = -Math.PI / 2;
-  floor.position.set((mazeWidth * tileSize) / 2, 0, (mazeDepth * tileSize) / 2);
+  floor.position.set((mazeWidth * tileSize) / 2, -0.5, (mazeDepth * tileSize) / 2);
   scene.add(floor);
 
   // Walls (higher)
