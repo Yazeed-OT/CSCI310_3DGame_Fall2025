@@ -132,18 +132,27 @@ function init() {
 
   document.addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
+    // Movement: WASD
     if (k === 'w') keys.forward = true;
     if (k === 's') keys.backward = true;
     if (k === 'a') keys.left = true;
     if (k === 'd') keys.right = true;
+    // Movement: Arrow Keys
+    if (k === 'arrowup') { keys.forward = true; e.preventDefault(); }
+    if (k === 'arrowdown') { keys.backward = true; e.preventDefault(); }
+    if (k === 'arrowleft') { keys.left = true; e.preventDefault(); }
+    if (k === 'arrowright') { keys.right = true; e.preventDefault(); }
+    // POV toggle
     if (k === 'p') togglePOV();
+    // Reset (reload)
+    if (k === 'r') window.location.reload();
   });
   document.addEventListener('keyup', (e) => {
     const k = e.key.toLowerCase();
-    if (k === 'w') keys.forward = false;
-    if (k === 's') keys.backward = false;
-    if (k === 'a') keys.left = false;
-    if (k === 'd') keys.right = false;
+    if (k === 'w' || k === 'arrowup') keys.forward = false;
+    if (k === 's' || k === 'arrowdown') keys.backward = false;
+    if (k === 'a' || k === 'arrowleft') keys.left = false;
+    if (k === 'd' || k === 'arrowright') keys.right = false;
   });
 
   window.addEventListener('resize', onWindowResize);
