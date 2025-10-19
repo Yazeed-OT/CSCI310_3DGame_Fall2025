@@ -233,6 +233,17 @@ function init() {
 
   document.addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
+    if (gameOver) {
+      // Only allow restart while game over
+      if (k === 'r') {
+        const newSeed = (Math.random() * 1e9) | 0;
+        const url = new URL(location.href);
+        url.searchParams.set('seed', String(newSeed));
+        url.searchParams.set('braid', '0');
+        location.href = url.toString();
+      }
+      return;
+    }
     // Movement: WASD
     if (k === 'w') keys.forward = true;
     if (k === 's') keys.backward = true;
@@ -256,6 +267,7 @@ function init() {
   });
   document.addEventListener('keyup', (e) => {
     const k = e.key.toLowerCase();
+    if (gameOver) return;
     if (k === 'w' || k === 'arrowup') keys.forward = false;
     if (k === 's' || k === 'arrowdown') keys.backward = false;
     if (k === 'a' || k === 'arrowleft') keys.left = false;
@@ -416,6 +428,11 @@ function endGame() {
   clearInterval(timerInterval);
   gameOverText.style.display = 'block';
   restartBtn.style.display = 'block';
+  // Clear any held movement keys so nothing keeps moving
+  keys.forward = false;
+  keys.backward = false;
+  keys.left = false;
+  keys.right = false;
 }
 
 restartBtn.addEventListener('click', () => {
@@ -450,12 +467,14 @@ function animate() {
   const delta = clock.getDelta();
   const moveSpeed = 3.2;
   const move = new THREE.Vector3();
-  if (keys.forward) move.z -= moveSpeed * delta;
-  if (keys.backward) move.z += moveSpeed * delta;
-  if (keys.left) move.x -= moveSpeed * delta;
-  if (keys.right) move.x += moveSpeed * delta;
+  if (!gameOver) {
+    if (keys.forward) move.z -= moveSpeed * delta;
+    if (keys.backward) move.z += moveSpeed * delta;
+    if (keys.left) move.x -= moveSpeed * delta;
+    if (keys.right) move.x += moveSpeed * delta;
+  }
 
-  if (move.lengthSq() > 0) {
+  if (!gameOver && move.lengthSq() > 0) {
     const dir = new THREE.Vector3();
     camera.getWorldDirection(dir);
     const right = new THREE.Vector3().crossVectors(camera.up, dir).normalize();
@@ -483,7 +502,7 @@ function animate() {
     }
   }
 
-  if (pov === 'overhead') {
+  if (!gameOver && pov === 'overhead') {
     const panSpeed = tileSize * 1.8;
     const pan = new THREE.Vector3();
     if (keys.forward) pan.z -= panSpeed * delta;
