@@ -24,6 +24,46 @@ const OVERHEAD_LOOK_AT_Y = -10.0; // aim lower to move maze further up in frame
 // Enable console diagnostics only when URL has ?debug
 const DEBUG = new URLSearchParams(window.location.search).has('debug');
 
+// Debug overlay elements and helpers
+let _debugEl = null;
+function ensureDebugOverlay() {
+  if (!DEBUG) return;
+  if (_debugEl) return _debugEl;
+  _debugEl = document.createElement('div');
+  _debugEl.id = 'debug-overlay';
+  _debugEl.style.cssText = [
+    'position:fixed',
+    'top:12px',
+    'right:12px',
+    'z-index:9999',
+    'font:12px/1.4 monospace',
+    'background:rgba(10,10,16,0.7)',
+    'border:1px solid rgba(120,160,255,0.35)',
+    'box-shadow:0 4px 16px rgba(0,0,0,0.35)',
+    'border-radius:8px',
+    'padding:8px 10px',
+    'color:#cfe1ff',
+    'max-width:38ch',
+    'white-space:pre-wrap'
+  ].join(';');
+  document.body.appendChild(_debugEl);
+  return _debugEl;
+}
+function fmtVec3(v) { return Array.isArray(v) ? v.map(n=>Number(n).toFixed(1)).join(',') : v.toArray().map(n=>n.toFixed(1)).join(','); }
+function updateDebugOverlay(ctx) {
+  if (!DEBUG) return;
+  ensureDebugOverlay();
+  const { mazeWidth, mazeDepth, tileSize, wallsCount, FOV, camPos, ovhH, ovhD } = ctx;
+  _debugEl.textContent = [
+    `Maze: ${mazeWidth} x ${mazeDepth}`,
+    `Tile: ${tileSize}`,
+    `Walls: ${wallsCount}`,
+    `FOV: ${FOV}`,
+    `Cam: [${fmtVec3(camPos)}]`,
+    `Overhead H:${ovhH.toFixed(1)} D:${ovhD.toFixed(1)} lookY:${OVERHEAD_LOOK_AT_Y}`
+  ].join('\n');
+}
+
 const timerDisplay = document.getElementById('timer');
 const gameOverText = document.getElementById('game-over');
 const restartBtn = document.getElementById('restart');
@@ -186,6 +226,28 @@ function init() {
       position: camera.position.toArray(),
       lookAt: [worldCenterX, 0, worldCenterZ],
     });
+    ensureDebugOverlay();
+    updateDebugOverlay({
+      mazeWidth,
+      mazeDepth,
+      tileSize,
+      wallsCount: walls.length,
+      FOV: FOV_DEGREES,
+      camPos: camera.position,
+      ovhH: overheadHeight,
+      ovhD: overheadDepth,
+    });
+    // Periodic refresh (1s) so position is current during movement
+    setInterval(() => updateDebugOverlay({
+      mazeWidth,
+      mazeDepth,
+      tileSize,
+      wallsCount: walls.length,
+      FOV: FOV_DEGREES,
+      camPos: camera.position,
+      ovhH: overheadHeight,
+      ovhD: overheadDepth,
+    }), 1000);
   }
 }
 
@@ -205,10 +267,20 @@ function togglePOV() {
     overheadOffset = new THREE.Vector3(0, height, depth);
     const camPos = overheadCenter.clone().add(overheadOffset);
     camera.position.copy(camPos);
-  camera.lookAt(new THREE.Vector3(overheadCenter.x, OVERHEAD_LOOK_AT_Y, overheadCenter.z));
+    camera.lookAt(new THREE.Vector3(overheadCenter.x, OVERHEAD_LOOK_AT_Y, overheadCenter.z));
   }
   if (DEBUG) {
     console.log('[POV]', pov, 'cam', camera.position.toArray());
+    updateDebugOverlay({
+      mazeWidth: mazeGrid[0].length,
+      mazeDepth: mazeGrid.length,
+      tileSize,
+      wallsCount: walls.length,
+      FOV: FOV_DEGREES,
+      camPos: camera.position,
+      ovhH: Math.max(mazeGrid[0].length, mazeGrid.length) * tileSize * OVERHEAD_HEIGHT_SCALE,
+      ovhD: Math.max(mazeGrid[0].length, mazeGrid.length) * tileSize * OVERHEAD_DEPTH_SCALE,
+    });
   }
 }
 
@@ -244,6 +316,16 @@ function onWindowResize() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   if (DEBUG) {
     console.log('[Resize]', { width: window.innerWidth, height: window.innerHeight, aspect: camera.aspect });
+    updateDebugOverlay({
+      mazeWidth: mazeGrid[0].length,
+      mazeDepth: mazeGrid.length,
+      tileSize,
+      wallsCount: walls.length,
+      FOV: FOV_DEGREES,
+      camPos: camera.position,
+      ovhH: Math.max(mazeGrid[0].length, mazeGrid.length) * tileSize * OVERHEAD_HEIGHT_SCALE,
+      ovhD: Math.max(mazeGrid[0].length, mazeGrid.length) * tileSize * OVERHEAD_DEPTH_SCALE,
+    });
   }
 }
 
