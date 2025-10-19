@@ -234,7 +234,7 @@ function init() {
     return door;
   }
 
-  makeDoor(entranceTile.x, entranceTile.z, 'ns');
+  // Only place a door at the exit; entrance remains open
   makeDoor(exitTile.x, exitTile.z, 'ns');
 
   // Print maze stats to console on load (dev utility)
