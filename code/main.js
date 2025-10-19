@@ -16,8 +16,9 @@ let overheadCenter = new THREE.Vector3(0, 0, 0);
 let playerStart = new THREE.Vector3(0, 1.6, 0);
 
 // Camera tuning
-const OVERHEAD_HEIGHT_SCALE = 1.2; // was 1.6 (closer)
-const OVERHEAD_DEPTH_SCALE = 0.65; // was 0.9 (closer)
+const FOV_DEGREES = 60; // was 75 (narrower FOV = closer look)
+const OVERHEAD_HEIGHT_SCALE = 0.9; // was 1.2 (closer)
+const OVERHEAD_DEPTH_SCALE = 0.5; // was 0.65 (closer)
 
 const timerDisplay = document.getElementById('timer');
 const gameOverText = document.getElementById('game-over');
@@ -38,7 +39,7 @@ function init() {
   const overheadHeight = mazeMax * OVERHEAD_HEIGHT_SCALE;
   const overheadDepth = mazeMax * OVERHEAD_DEPTH_SCALE;
 
-  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1500);
+  camera = new THREE.PerspectiveCamera(FOV_DEGREES, window.innerWidth / window.innerHeight, 0.1, 1500);
   camera.position.set(worldCenterX, overheadHeight, worldCenterZ + overheadDepth);
   camera.lookAt(new THREE.Vector3(worldCenterX, 0, worldCenterZ));
 
