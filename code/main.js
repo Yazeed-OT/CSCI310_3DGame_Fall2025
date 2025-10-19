@@ -4,7 +4,7 @@ import { mazeGrid } from './maze.js';
 
 let scene, camera, renderer, clock, playerVelocity;
 let walls = [];
-let timer = 80;
+let timer = 60;
 let timerInterval;
 let gameOver = false;
 let keys = { forward: false, backward: false, left: false, right: false };
