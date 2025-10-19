@@ -20,6 +20,9 @@ const FOV_DEGREES = 60; // was 75 (narrower FOV = closer look)
 const OVERHEAD_HEIGHT_SCALE = 0.9; // was 1.2 (closer)
 const OVERHEAD_DEPTH_SCALE = 0.5; // was 0.65 (closer)
 
+// Enable console diagnostics only when URL has ?debug
+const DEBUG = new URLSearchParams(window.location.search).has('debug');
+
 const timerDisplay = document.getElementById('timer');
 const gameOverText = document.getElementById('game-over');
 const restartBtn = document.getElementById('restart');
@@ -165,6 +168,24 @@ function init() {
 
   overheadCenter.set((mazeWidth * tileSize) / 2, 0, (mazeDepth * tileSize) / 2);
   overheadOffset = new THREE.Vector3(0, overheadHeight, overheadDepth);
+
+  if (DEBUG) {
+    console.log('[Maze]', {
+      mazeWidth,
+      mazeDepth,
+      tileSize,
+      worldCenterX,
+      worldCenterZ,
+      mazeMax,
+    });
+    console.log('[Camera:init]', {
+      FOV_DEGREES,
+      overheadHeight,
+      overheadDepth,
+      position: camera.position.toArray(),
+      lookAt: [worldCenterX, 0, worldCenterZ],
+    });
+  }
 }
 
 function togglePOV() {
@@ -184,6 +205,9 @@ function togglePOV() {
     const camPos = overheadCenter.clone().add(overheadOffset);
     camera.position.copy(camPos);
     camera.lookAt(new THREE.Vector3(overheadCenter.x, 0, overheadCenter.z));
+  }
+  if (DEBUG) {
+    console.log('[POV]', pov, 'cam', camera.position.toArray());
   }
 }
 
@@ -217,6 +241,9 @@ function onWindowResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  if (DEBUG) {
+    console.log('[Resize]', { width: window.innerWidth, height: window.innerHeight, aspect: camera.aspect });
+  }
 }
 
 function animate() {
