@@ -1,0 +1,14 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Serve Web (Python 8000)",
+      "type": "shell",
+      "command": "python3",
+      "args": ["-m", "http.server", "8000", "--bind", "127.0.0.1"],
+      "group": "build",
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ]
+}

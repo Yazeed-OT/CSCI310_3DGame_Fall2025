@@ -1,52 +1,20 @@
+// code/main.js
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 import { mazeGrid } from './maze.js';
 
 let scene, camera, renderer, clock, playerVelocity;
 let walls = [];
-let timer = 60;
+let timer = 80;
 let timerInterval;
-let gameOver = false; // timer ran out
-let won = false;      // reached the goal
-let controlsLocked = false; // prevent movement after win/lose
-// global key state (so animate can read it)
-let keys = {
-  forward: false,      // ArrowUp
-  backward: false,     // ArrowDown
-  turnLeft: false,     // ArrowLeft
-  turnRight: false,    // ArrowRight
-};
-
-// POV mode: 'overhead' or 'first'
+let gameOver = false;
+let keys = { forward: false, backward: false, left: false, right: false };
 let pov = 'overhead';
-
-// Simple Roblox-like character
-let player;            // THREE.Group character root
-let playerYaw = 0;     // rotation around Y (radians)
-const playerSize = {   // half-extents for collision box (scaled by tileSize for x/z)
-  x: 0.35, // narrower to avoid blocking corridors
-  y: 0.9,
-  z: 0.35
-};
-let headHeight = 1.6;  // approximate camera eye level
-
-// doors array is global so animate() can update them
 let doors = [];
-let goalTorus = null; // goal trigger at exit tile
-// simple confetti system
-let confettiGroup = null;
-let confetti = []; // { mesh, velocity: THREE.Vector3, life }
-// overhead look offset (camera position - lookAt target) preserved while panning
 let overheadOffset = null;
-// world tile size (scale)
-let tileSize = 3.0;
-// Player speed in tiles per second (tweak this to change movement speed)
-const PLAYER_SPEED_TPS = 3.5;
-// overhead center in world coords
-let overheadCenter = new THREE.Vector3(0,0,0);
-// player start in world coords
-let playerStart = new THREE.Vector3(0,1.6,0);
+let tileSize = 3.5; // slightly bigger tiles for scale
+let overheadCenter = new THREE.Vector3(0, 0, 0);
+let playerStart = new THREE.Vector3(0, 1.6, 0);
 
-// UI elements
 const timerDisplay = document.getElementById('timer');
 const gameOverText = document.getElementById('game-over');
 const restartBtn = document.getElementById('restart');
@@ -57,24 +25,20 @@ animate();
 function init() {
   scene = new THREE.Scene();
 
-  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-  // Compute maze size and tile size (scale) to make the maze larger
   const mazeWidth = mazeGrid[0].length;
   const mazeDepth = mazeGrid.length;
-  tileSize = 3.0; // bigger tiles -> bigger maze
 
-  // Default to an overhead camera using world units (tileSize)
   const worldCenterX = (mazeWidth * tileSize) / 2;
   const worldCenterZ = (mazeDepth * tileSize) / 2;
   const mazeMax = Math.max(mazeWidth, mazeDepth) * tileSize;
-  // Increase the overhead distance for a wider view
-  const overheadHeight = mazeMax * 1.4; // previously ~1.1x
-  const overheadDepth = mazeMax * 0.7;  // previously ~0.3x
+  const overheadHeight = mazeMax * 1.6;
+  const overheadDepth = mazeMax * 0.9;
+
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1500);
   camera.position.set(worldCenterX, overheadHeight, worldCenterZ + overheadDepth);
   camera.lookAt(new THREE.Vector3(worldCenterX, 0, worldCenterZ));
 
-  // Player start (first-person) coordinates (in world coords)
-  playerStart.set(1.5 * tileSize, 1.1, 1.5 * tileSize);
+  playerStart.set(1.5 * tileSize, 1.6, 1.5 * tileSize);
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -85,7 +49,6 @@ function init() {
   playerVelocity = new THREE.Vector3();
 
   // Lighting
-  // Better lighting: directional + ambient for contrast
   const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
   dirLight.position.set(10, 20, 10);
   scene.add(dirLight);
@@ -93,54 +56,40 @@ function init() {
   const ambient = new THREE.AmbientLight(0x303040, 0.9);
   scene.add(ambient);
 
-  // Floor scaled to maze size
+  // Floor
   const floorGeo = new THREE.PlaneGeometry(mazeWidth * tileSize * 1.5, mazeDepth * tileSize * 1.5);
   const floorMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
   const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.rotation.x = -Math.PI / 2;
-  floor.position.set((mazeWidth * tileSize) / 2, 0, (mazeDepth * tileSize) / 2);
+  floor.position.set((mazeWidth * tileSize) / 2, -0.5, (mazeDepth * tileSize) / 2);
   scene.add(floor);
 
-  // Maze walls
-  // Make a slightly taller wall and a professional light-blue material
-  const wallGeo = new THREE.BoxGeometry(tileSize, 2.2, tileSize);
+  // Walls (higher)
+  const wallGeo = new THREE.BoxGeometry(tileSize, 3.2, tileSize);
   const wallMat = new THREE.MeshStandardMaterial({
-    color: 0x68b0ff, // light blue
-    roughness: 0.5,
-    metalness: 0.05,
+    color: 0x5da9ff,
+    roughness: 0.4,
+    metalness: 0.1,
   });
 
-  // Prepare doors: choose two tile coordinates (entrance top, exit right)
-  // We'll clear those cells in the grid so the wall loop doesn't create a blocking wall, then create door meshes there.
   const entranceTile = { x: 1, z: 0 };
   const exitTile = { x: mazeWidth - 2, z: mazeDepth - 1 };
-  // modify the imported mazeGrid in-memory to remove the blocking wall where doors will be placed
-  if (mazeGrid[entranceTile.z] && typeof mazeGrid[entranceTile.z][entranceTile.x] !== 'undefined') {
-    mazeGrid[entranceTile.z][entranceTile.x] = 0;
-  }
-  if (mazeGrid[exitTile.z] && typeof mazeGrid[exitTile.z][exitTile.x] !== 'undefined') {
-    mazeGrid[exitTile.z][exitTile.x] = 0;
-  }
+  if (mazeGrid[entranceTile.z]) mazeGrid[entranceTile.z][entranceTile.x] = 0;
+  if (mazeGrid[exitTile.z]) mazeGrid[exitTile.z][exitTile.x] = 0;
 
   for (let z = 0; z < mazeGrid.length; z++) {
     for (let x = 0; x < mazeGrid[z].length; x++) {
       if (mazeGrid[z][x] === 1) {
         const wall = new THREE.Mesh(wallGeo, wallMat);
-        // center walls on tile centers and scale by tileSize
-        wall.position.set((x + 0.5) * tileSize, 1.1, (z + 0.5) * tileSize);
+        wall.position.set((x + 0.5) * tileSize, 1.6, (z + 0.5) * tileSize);
         scene.add(wall);
         walls.push(wall);
       }
     }
   }
 
-  // Create player character (blocky Roblox-style)
-  createPlayer();
-
-  // Door definitions (entrance only)
-  // doors array (global) already declared; clear and reuse
-  doors = [];
-  const doorHeight = 2.0;
+  // Doors
+  const doorHeight = 2.8;
   const doorThickness = tileSize * 0.2;
   const doorWidth = tileSize * 0.9;
 
@@ -148,30 +97,20 @@ function init() {
     const geom = new THREE.BoxGeometry(doorWidth, doorHeight, doorThickness);
     const mat = new THREE.MeshStandardMaterial({ color: 0x223344, roughness: 0.6 });
     const door = new THREE.Mesh(geom, mat);
-    // place at tile center
     door.position.set((tileX + 0.5) * tileSize, doorHeight / 2, (tileZ + 0.5) * tileSize);
     if (orientation === 'ew') door.rotation.y = Math.PI / 2;
     door.userData = { opening: false, opened: false };
     scene.add(door);
     doors.push(door);
-    walls.push(door); // treat door as blocking until opened
+    walls.push(door);
     return door;
   }
 
-  // create entrance door only (exit is the goal area)
-  const entranceDoor = makeDoor(entranceTile.x, entranceTile.z, 'ns');
+  makeDoor(entranceTile.x, entranceTile.z, 'ns');
+  makeDoor(exitTile.x, exitTile.z, 'ns');
 
-  // Create a goal torus at the exit tile (no blocking wall/door here)
-  const torusGeo = new THREE.TorusGeometry(tileSize * 0.45, tileSize * 0.12, 12, 24);
-  const torusMat = new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0x221100, metalness: 0.2, roughness: 0.4 });
-  goalTorus = new THREE.Mesh(torusGeo, torusMat);
-  goalTorus.position.set((exitTile.x + 0.5) * tileSize, 1.2, (exitTile.z + 0.5) * tileSize);
-  scene.add(goalTorus);
-
-  // Interaction: press 'E' to open nearby door
   document.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'e') {
-      // find nearest door within interaction distance
       const pos = camera.position;
       let closest = null;
       let closestDist = Infinity;
@@ -184,133 +123,67 @@ function init() {
         }
       }
       if (closest && closestDist < tileSize * 1.4) {
-        // start opening animation
         closest.userData.opening = true;
       }
     }
   });
 
-  // Debug: log how many walls were created
-  console.log('Maze size:', mazeWidth, 'x', mazeDepth, '- walls:', walls.length);
-
-  // Timer
   startTimer();
 
-  // Controls: use continuous movement (key state + per-frame) instead of single keydown
   document.addEventListener('keydown', (e) => {
-    const k = e.key;
-    if (!controlsLocked) {
-      if (k === 'ArrowUp') keys.forward = true;
-      if (k === 'ArrowDown') keys.backward = true;
-      if (k === 'ArrowLeft') keys.turnLeft = true;
-      if (k === 'ArrowRight') keys.turnRight = true;
-    }
-    if (k === 'p') {
-      // toggle POV
-      if (pov === 'overhead') {
-        pov = 'first';
-        // snap camera to player's head
-        if (!player) return;
-        camera.position.set(player.position.x, player.position.y + headHeight - 0.1, player.position.z);
-        const f = forwardFromYaw();
-        camera.lookAt(new THREE.Vector3().addVectors(camera.position, f));
-      } else {
-        pov = 'overhead';
-        // Re-establish overhead offset using world units and increased distance
-        const mazeMaxLocal = Math.max(mazeWidth, mazeDepth) * tileSize;
-        const height = mazeMaxLocal * 1.4;
-        const depth = mazeMaxLocal * 0.7;
-        overheadOffset = new THREE.Vector3(0, height, depth);
-        const camPos = overheadCenter.clone().add(overheadOffset);
-        camera.position.copy(camPos);
-        camera.lookAt(new THREE.Vector3(overheadCenter.x, 0, overheadCenter.z));
-      }
-    }
-    if (k === 'r' || k === 'R') {
-      // simple reset: full page reload to restore initial state
-      window.location.reload();
-    }
+    const k = e.key.toLowerCase();
+    if (k === 'w') keys.forward = true;
+    if (k === 's') keys.backward = true;
+    if (k === 'a') keys.left = true;
+    if (k === 'd') keys.right = true;
+    if (k === 'p') togglePOV();
   });
   document.addEventListener('keyup', (e) => {
-    const k = e.key;
-    if (k === 'ArrowUp') keys.forward = false;
-    if (k === 'ArrowDown') keys.backward = false;
-    if (k === 'ArrowLeft') keys.turnLeft = false;
-    if (k === 'ArrowRight') keys.turnRight = false;
+    const k = e.key.toLowerCase();
+    if (k === 'w') keys.forward = false;
+    if (k === 's') keys.backward = false;
+    if (k === 'a') keys.left = false;
+    if (k === 'd') keys.right = false;
   });
-
 
   window.addEventListener('resize', onWindowResize);
 
-  // Add a subtle grid helper for orientation (scaled to tileSize)
-  const gridSize = Math.max(mazeWidth, mazeDepth) * tileSize * 1.5;
-  const gridDivisions = Math.max(mazeWidth, mazeDepth);
-  const grid = new THREE.GridHelper(gridSize, gridDivisions);
+  const grid = new THREE.GridHelper(Math.max(mazeWidth, mazeDepth) * tileSize * 2, Math.max(mazeWidth, mazeDepth));
   grid.material.opacity = 0.15;
   grid.material.transparent = true;
-  // Center the grid on the maze/floor and lift slightly to avoid z-fighting
-  grid.position.set(worldCenterX, 0.01, worldCenterZ);
-  grid.material.depthWrite = false;
   scene.add(grid);
 
-  // set overhead center and offset for panning (use simple world-unit offset)
   overheadCenter.set((mazeWidth * tileSize) / 2, 0, (mazeDepth * tileSize) / 2);
-  // Keep a fixed offset so camera = overheadCenter + overheadOffset
   overheadOffset = new THREE.Vector3(0, overheadHeight, overheadDepth);
 }
 
-  // Movement is handled per-frame in animate using keys state
+function togglePOV() {
+  const mazeWidth = mazeGrid[0].length;
+  const mazeDepth = mazeGrid.length;
+  const mazeMaxLocal = Math.max(mazeWidth, mazeDepth) * tileSize;
+  const height = mazeMaxLocal * 1.6;
+  const depth = mazeMaxLocal * 0.9;
 
-function getPlayerBoxAt(pos) {
-  const halfX = playerSize.x * tileSize;
-  const halfZ = playerSize.z * tileSize;
-  const halfY = playerSize.y; // height not scaled by tileSize (world units already)
-  const min = new THREE.Vector3(pos.x - halfX, pos.y - halfY, pos.z - halfZ);
-  const max = new THREE.Vector3(pos.x + halfX, pos.y + halfY, pos.z + halfZ);
-  return new THREE.Box3(min, max);
+  if (pov === 'overhead') {
+    pov = 'first';
+    camera.position.set(playerStart.x, playerStart.y, playerStart.z);
+    camera.lookAt(new THREE.Vector3(playerStart.x, 0, playerStart.z + 1));
+  } else {
+    pov = 'overhead';
+    overheadOffset = new THREE.Vector3(0, height, depth);
+    const camPos = overheadCenter.clone().add(overheadOffset);
+    camera.position.copy(camPos);
+    camera.lookAt(new THREE.Vector3(overheadCenter.x, 0, overheadCenter.z));
+  }
 }
 
-function collidesAt(pos) {
-  const pBox = getPlayerBoxAt(pos);
-  const wallBox = new THREE.Box3();
-  for (const w of walls) {
-    wallBox.setFromObject(w);
-    if (pBox.intersectsBox(wallBox)) return true;
+function checkCollision(pos) {
+  const radius = 0.7;
+  for (let wall of walls) {
+    const dist = wall.position.distanceTo(pos);
+    if (dist < radius) return true;
   }
   return false;
-}
-
-function movePlayer(delta) {
-  // rotate with arrow keys
-  const turnSpeed = 2.2; // rad/sec
-  if (keys.turnLeft) playerYaw += turnSpeed * delta;   // left arrow turns left
-  if (keys.turnRight) playerYaw -= turnSpeed * delta;  // right arrow turns right
-  player.rotation.y = playerYaw;
-
-  // movement: forward/back only (no strafing)
-  const moveSpeed = tileSize * PLAYER_SPEED_TPS; // tiles/sec -> world units/sec
-  let world = new THREE.Vector3();
-  if (keys.forward) {
-    world.x -= Math.sin(playerYaw) * moveSpeed * delta;
-    world.z -= Math.cos(playerYaw) * moveSpeed * delta;
-  }
-  if (keys.backward) {
-    world.x += Math.sin(playerYaw) * moveSpeed * delta;
-    world.z += Math.cos(playerYaw) * moveSpeed * delta;
-  }
-  if (world.lengthSq() === 0) return;
-
-  const next = player.position.clone();
-  // axis-separated resolution
-  next.x += world.x;
-  if (collidesAt(new THREE.Vector3(next.x, player.position.y, next.z))) {
-    next.x = player.position.x;
-  }
-  next.z += world.z;
-  if (collidesAt(new THREE.Vector3(next.x, player.position.y, next.z))) {
-    next.z = player.position.z;
-  }
-  player.position.copy(next);
 }
 
 function startTimer() {
@@ -328,9 +201,7 @@ function endGame() {
   restartBtn.style.display = 'block';
 }
 
-restartBtn.addEventListener('click', () => {
-  window.location.reload();
-});
+restartBtn.addEventListener('click', () => window.location.reload());
 
 function onWindowResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -340,159 +211,52 @@ function onWindowResize() {
 
 function animate() {
   requestAnimationFrame(animate);
-  // update movement based on key state
   const delta = clock.getDelta();
-  // Move the player (Arrow keys). Camera behavior differs by POV.
-  if (!controlsLocked) movePlayer(delta);
+  const moveSpeed = 3.2;
+  const move = new THREE.Vector3();
+  if (keys.forward) move.z -= moveSpeed * delta;
+  if (keys.backward) move.z += moveSpeed * delta;
+  if (keys.left) move.x -= moveSpeed * delta;
+  if (keys.right) move.x += moveSpeed * delta;
 
-  // overhead panning: when in overhead mode, pan the overheadCenter and update camera position
-  // Overhead view no longer pans the map with keys; it stays centered on the board
-
-  // Update camera position in first-person to follow player's head
-  if (pov === 'first') {
-    camera.position.set(player.position.x, player.position.y + headHeight - 0.1, player.position.z);
-    const f = forwardFromYaw();
-    const lookTarget = new THREE.Vector3().addVectors(camera.position, f);
-    camera.lookAt(lookTarget);
+  if (move.lengthSq() > 0) {
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    const right = new THREE.Vector3().crossVectors(camera.up, dir).normalize();
+    const forward = new THREE.Vector3(dir.x, 0, dir.z).normalize();
+    const worldMove = new THREE.Vector3();
+    worldMove.addScaledVector(forward, -move.z);
+    worldMove.addScaledVector(right, move.x);
+    const newPos = camera.position.clone().add(worldMove);
+    if (!checkCollision(newPos)) camera.position.copy(newPos);
   }
 
-  // update doors (animate opening)
+  if (pov === 'overhead') {
+    const panSpeed = tileSize * 1.8;
+    const pan = new THREE.Vector3();
+    if (keys.forward) pan.z -= panSpeed * delta;
+    if (keys.backward) pan.z += panSpeed * delta;
+    if (keys.left) pan.x -= panSpeed * delta;
+    if (keys.right) pan.x += panSpeed * delta;
+    if (pan.lengthSq() > 0) {
+      overheadCenter.add(pan);
+      const newCamPos = overheadCenter.clone().add(overheadOffset);
+      camera.position.copy(newCamPos);
+      camera.lookAt(new THREE.Vector3(overheadCenter.x, 0, overheadCenter.z));
+    }
+  }
+
   for (const d of doors) {
     if (d.userData.opening && !d.userData.opened) {
-      // slide upward
-      d.position.y += 1.2 * delta; // open speed
-      if (d.position.y > 3.5) {
+      d.position.y += 1.4 * delta;
+      if (d.position.y > 4.0) {
         d.userData.opened = true;
         d.userData.opening = false;
-        // remove from walls list so collision no longer checks it
         const idx = walls.indexOf(d);
         if (idx !== -1) walls.splice(idx, 1);
       }
     }
   }
 
-  // Spin the goal torus for visibility
-  if (goalTorus) {
-    goalTorus.rotation.x += delta * 1.2;
-    goalTorus.rotation.y += delta * 0.8;
-    // check win overlap on XZ plane
-    if (!won && !gameOver) {
-      const dx = player.position.x - goalTorus.position.x;
-      const dz = player.position.z - goalTorus.position.z;
-      const dist2 = dx*dx + dz*dz;
-      const triggerRadius = tileSize * 0.5;
-      if (dist2 < triggerRadius * triggerRadius) {
-        onWin();
-      }
-    }
-  }
-
-  // update confetti particles
-  if (confetti.length > 0) {
-    for (let i = confetti.length - 1; i >= 0; i--) {
-      const p = confetti[i];
-      // simple gravity
-      p.velocity.y -= 9.8 * delta * 0.6;
-      p.mesh.position.addScaledVector(p.velocity, delta);
-      // fade out
-      p.life -= delta;
-      const mat = p.mesh.material;
-      if (mat && mat.opacity !== undefined) {
-        mat.opacity = Math.max(0, p.life / 1.2);
-        mat.transparent = true;
-        mat.depthWrite = false;
-      }
-      if (p.life <= 0 || p.mesh.position.y < 0) {
-        scene.remove(p.mesh);
-        confetti.splice(i, 1);
-      }
-    }
-  }
-
   renderer.render(scene, camera);
-}
-
-// Helpers
-function forwardFromYaw() {
-  return new THREE.Vector3(Math.sin(playerYaw), 0, Math.cos(playerYaw)).normalize();
-}
-
-function onWin() {
-  won = true;
-  controlsLocked = true;
-  clearInterval(timerInterval);
-  // update UI
-  if (gameOverText) {
-    gameOverText.textContent = 'YOU ESCAPED! Press R to restart';
-    gameOverText.style.display = 'block';
-  }
-  if (restartBtn) restartBtn.style.display = 'block';
-  // confetti burst at player position
-  spawnConfetti(player.position.clone().add(new THREE.Vector3(0, 1.5, 0)), 120);
-}
-
-function spawnConfetti(center, count = 100) {
-  if (!confettiGroup) {
-    confettiGroup = new THREE.Group();
-    scene.add(confettiGroup);
-  }
-  const colors = [0xff6b6b, 0x4ecdc4, 0xffd166, 0x95d5b2, 0xcaa8f5];
-  for (let i = 0; i < count; i++) {
-    const size = Math.random() * 0.12 + 0.06;
-    const geom = new THREE.PlaneGeometry(size, size);
-    const mat = new THREE.MeshStandardMaterial({ color: colors[i % colors.length], side: THREE.DoubleSide });
-    const m = new THREE.Mesh(geom, mat);
-    m.position.copy(center);
-    // random impulse
-    const theta = Math.random() * Math.PI * 2;
-    const up = Math.random() * 2 + 2.5;
-    const speed = Math.random() * 2 + 1.5;
-    const vx = Math.cos(theta) * speed;
-    const vz = Math.sin(theta) * speed;
-    const vy = up;
-    confettiGroup.add(m);
-    confetti.push({ mesh: m, velocity: new THREE.Vector3(vx, vy, vz), life: 1.2 });
-  }
-}
-
-// removed mouse-look pitch helper
-
-function createPlayer() {
-  const group = new THREE.Group();
-  // scale dimensions by tile size for width/depth
-  const torsoW = tileSize * 0.6, torsoH = 0.9, torsoD = tileSize * 0.35;
-  const limbW = tileSize * 0.22, limbD = tileSize * 0.22, limbH = 0.8;
-  const headSize = tileSize * 0.35;
-
-  const matTorso = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
-  const matLimb  = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
-  const matHead  = new THREE.MeshStandardMaterial({ color: 0xdeb887, roughness: 0.7 });
-
-  // Torso
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(torsoW, torsoH, torsoD), matTorso);
-  torso.position.y = torsoH / 2 + 0.2;
-  group.add(torso);
-  // Head
-  const head = new THREE.Mesh(new THREE.BoxGeometry(headSize, headSize, headSize), matHead);
-  head.position.y = torso.position.y + torsoH / 2 + headSize / 2 + 0.05;
-  group.add(head);
-  // Arms
-  const armL = new THREE.Mesh(new THREE.BoxGeometry(limbW, limbH, limbD), matTorso);
-  const armR = armL.clone();
-  armL.position.set(-torsoW / 2 - limbW / 2, torso.position.y + 0.05, 0);
-  armR.position.set( torsoW / 2 + limbW / 2, torso.position.y + 0.05, 0);
-  group.add(armL, armR);
-  // Legs
-  const legL = new THREE.Mesh(new THREE.BoxGeometry(limbW, limbH, limbD), matLimb);
-  const legR = legL.clone();
-  legL.position.set(-limbW * 0.6, limbH / 2, 0);
-  legR.position.set( limbW * 0.6, limbH / 2, 0);
-  group.add(legL, legR);
-
-  group.position.copy(playerStart);
-  scene.add(group);
-  player = group;
-  // collision box tuning
-  headHeight = head.position.y; // eye height roughly
-  playerYaw = 0; // face +Z initially
 }
