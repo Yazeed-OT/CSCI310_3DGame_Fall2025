@@ -23,6 +23,99 @@ const OVERHEAD_LOOK_AT_Y = -10.0; // aim lower to move maze further up in frame
 
 // Enable console diagnostics only when URL has ?debug
 const DEBUG = new URLSearchParams(window.location.search).has('debug');
+// ---------- Debug + analytics: Maze info ----------
+function logMazeInfo(grid, opts = {}) {
+  try {
+    const h = grid.length;
+    const w = grid[0]?.length ?? 0;
+    const cellSize = opts.cellSize ?? tileSize;
+    const wallHeight = opts.wallHeight ?? 3.2;
+    const wallThickness = opts.wallThickness ?? cellSize;
+    const seed = opts.seed ?? 'n/a';
+
+    // Detect entrance/exit on boundaries if not provided
+    const boundaryOpens = [];
+    for (let x = 0; x < w; x++) {
+      if (grid[0][x] === 0) boundaryOpens.push({ x, z: 0 });
+      if (grid[h - 1][x] === 0) boundaryOpens.push({ x, z: h - 1 });
+    }
+    for (let z = 0; z < h; z++) {
+      if (grid[z][0] === 0) boundaryOpens.push({ x: 0, z });
+      if (grid[z][w - 1] === 0) boundaryOpens.push({ x: w - 1, z });
+    }
+    const entrance = opts.entrance ?? boundaryOpens[0] ?? { x: 1, z: 0 };
+    const exit = opts.exit ?? boundaryOpens[1] ?? { x: w - 2, z: h - 1 };
+
+    // Counts
+    let walls = 0, passages = 0;
+    for (let z = 0; z < h; z++) {
+      for (let x = 0; x < w; x++) {
+        if (grid[z][x] === 1) walls++; else passages++;
+      }
+    }
+    
+    // Dead-ends (4-neighborhood)
+    const inBounds = (x, z) => x >= 0 && z >= 0 && x < w && z < h;
+    const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+    let deadEnds = 0;
+    for (let z = 0; z < h; z++) {
+      for (let x = 0; x < w; x++) {
+        if (grid[z][x] === 0) {
+          let openN = 0;
+          for (const [dx, dz] of dirs) if (inBounds(x+dx, z+dz) && grid[z+dz][x+dx] === 0) openN++;
+          if (openN === 1) deadEnds++;
+        }
+      }
+    }
+
+    // Shortest path using BFS
+    console.time('maze:bfs');
+    const q = [];
+    const dist = Array.from({ length: h }, () => Array(w).fill(-1));
+    const push = (x, z, d) => { dist[z][x] = d; q.push([x,z]); };
+    if (inBounds(entrance.x, entrance.z) && grid[entrance.z][entrance.x] === 0) push(entrance.x, entrance.z, 0);
+    while (q.length) {
+      const [cx, cz] = q.shift();
+      if (cx === exit.x && cz === exit.z) break;
+      for (const [dx, dz] of dirs) {
+        const nx = cx + dx, nz = cz + dz;
+        if (!inBounds(nx, nz)) continue;
+        if (grid[nz][nx] !== 0) continue;
+        if (dist[nz][nx] !== -1) continue;
+        push(nx, nz, dist[cz][cx] + 1);
+      }
+    }
+    const shortest = (inBounds(exit.x, exit.z) ? dist[exit.z][exit.x] : -1);
+    console.timeEnd('maze:bfs');
+
+    // ASCII preview
+    let ascii = '';
+    for (let z = 0; z < h; z++) {
+      let line = '';
+      for (let x = 0; x < w; x++) {
+        if (x === entrance.x && z === entrance.z) line += 'S';
+        else if (x === exit.x && z === exit.z) line += 'E';
+        else line += (grid[z][x] === 1 ? '#' : ' ');
+      }
+      ascii += line + '\n';
+    }
+
+    // Output
+    console.groupCollapsed('Maze Info');
+    console.table([{ 
+      width: w, height: h, seed, cellSize, wallHeight, wallThickness,
+      entrance: `(${entrance.x},${entrance.z})`, exit: `(${exit.x},${exit.z})`,
+      walls, passages, deadEnds, shortestPath: shortest
+    }]);
+    console.groupCollapsed('ASCII Preview');
+    console.log(`\n${ascii}`);
+    console.groupEnd();
+    console.groupEnd();
+  } catch (err) {
+    console.warn('logMazeInfo failed:', err);
+  }
+}
+
 
 // Debug overlay elements and helpers
 let _debugEl = null;
@@ -156,6 +249,15 @@ function init() {
 
   makeDoor(entranceTile.x, entranceTile.z, 'ns');
   makeDoor(exitTile.x, exitTile.z, 'ns');
+
+  // Print maze stats to console on load (dev utility)
+  logMazeInfo(mazeGrid, {
+    cellSize: tileSize,
+    wallHeight: 3.2,
+    wallThickness: tileSize,
+    entrance: entranceTile,
+    exit: exitTile,
+  });
 
   document.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'e') {
