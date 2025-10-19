@@ -33,8 +33,8 @@ function ensureDebugOverlay() {
   _debugEl.id = 'debug-overlay';
   _debugEl.style.cssText = [
     'position:fixed',
-    'top:12px',
-    'right:12px',
+    'top:60px',
+    'left:12px',
     'z-index:9999',
     'font:12px/1.4 monospace',
     'background:rgba(10,10,16,0.7)',
