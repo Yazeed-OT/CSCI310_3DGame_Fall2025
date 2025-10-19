@@ -15,6 +15,10 @@ let tileSize = 3.5; // slightly bigger tiles for scale
 let overheadCenter = new THREE.Vector3(0, 0, 0);
 let playerStart = new THREE.Vector3(0, 1.6, 0);
 
+// Camera tuning
+const OVERHEAD_HEIGHT_SCALE = 1.2; // was 1.6 (closer)
+const OVERHEAD_DEPTH_SCALE = 0.65; // was 0.9 (closer)
+
 const timerDisplay = document.getElementById('timer');
 const gameOverText = document.getElementById('game-over');
 const restartBtn = document.getElementById('restart');
@@ -31,8 +35,8 @@ function init() {
   const worldCenterX = (mazeWidth * tileSize) / 2;
   const worldCenterZ = (mazeDepth * tileSize) / 2;
   const mazeMax = Math.max(mazeWidth, mazeDepth) * tileSize;
-  const overheadHeight = mazeMax * 1.6;
-  const overheadDepth = mazeMax * 0.9;
+  const overheadHeight = mazeMax * OVERHEAD_HEIGHT_SCALE;
+  const overheadDepth = mazeMax * OVERHEAD_DEPTH_SCALE;
 
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1500);
   camera.position.set(worldCenterX, overheadHeight, worldCenterZ + overheadDepth);
@@ -166,8 +170,8 @@ function togglePOV() {
   const mazeWidth = mazeGrid[0].length;
   const mazeDepth = mazeGrid.length;
   const mazeMaxLocal = Math.max(mazeWidth, mazeDepth) * tileSize;
-  const height = mazeMaxLocal * 1.6;
-  const depth = mazeMaxLocal * 0.9;
+  const height = mazeMaxLocal * OVERHEAD_HEIGHT_SCALE;
+  const depth = mazeMaxLocal * OVERHEAD_DEPTH_SCALE;
 
   if (pov === 'overhead') {
     pov = 'first';
