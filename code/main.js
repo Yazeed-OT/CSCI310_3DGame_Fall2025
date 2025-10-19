@@ -294,8 +294,14 @@ function init() {
     if (k === 'arrowright') { keys.right = true; e.preventDefault(); }
     // POV toggle
     if (k === 'p') togglePOV();
-    // Reset (reload)
-    if (k === 'r') window.location.reload();
+    // Reset (reload with new seed for a fresh maze)
+    if (k === 'r') {
+      const newSeed = (Math.random() * 1e9) | 0;
+      const url = new URL(location.href);
+      url.searchParams.set('seed', String(newSeed));
+      url.searchParams.set('braid', '0'); // keep perfect maze
+      location.href = url.toString();
+    }
   });
   document.addEventListener('keyup', (e) => {
     const k = e.key.toLowerCase();
@@ -410,7 +416,13 @@ function endGame() {
   restartBtn.style.display = 'block';
 }
 
-restartBtn.addEventListener('click', () => window.location.reload());
+restartBtn.addEventListener('click', () => {
+  const newSeed = (Math.random() * 1e9) | 0;
+  const url = new URL(location.href);
+  url.searchParams.set('seed', String(newSeed));
+  url.searchParams.set('braid', '0');
+  location.href = url.toString();
+});
 
 function onWindowResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
