@@ -14,6 +14,8 @@ let overheadOffset = null;
 let tileSize = 3.5; // slightly bigger tiles for scale
 let overheadCenter = new THREE.Vector3(0, 0, 0);
 let playerStart = new THREE.Vector3(0, 1.6, 0);
+// Player collision radius (must be < tileSize/2)
+const PLAYER_RADIUS = 0.3; // as a fraction of tileSize; actual radius = tileSize * PLAYER_RADIUS
 
 // Camera tuning
 const FOV_DEGREES = 60; // was 75 (narrower FOV = closer look)
@@ -355,7 +357,7 @@ function togglePOV() {
     pov = 'first';
     // Place camera inside the maze at (1,1) cell center and face an open corridor
     const startCell = { x: 1, z: 1 };
-    const toWorld = (cx, cz) => new THREE.Vector3((cx + 0.5) * tileSize, 1.7, (cz + 0.5) * tileSize);
+  const toWorld = (cx, cz) => new THREE.Vector3((cx + 0.5) * tileSize, 1.7, (cz + 0.5) * tileSize);
     const inBounds = (x, z) => x >= 0 && z >= 0 && x < mazeWidth && z < mazeDepth;
     const dirs = [ {dx:0,dz:1}, {dx:1,dz:0}, {dx:0,dz:-1}, {dx:-1,dz:0} ]; // prefer looking forward into the maze first
     const pos = toWorld(startCell.x, startCell.z);
@@ -388,6 +390,59 @@ function togglePOV() {
       ovhD: Math.max(mazeGrid[0].length, mazeGrid.length) * tileSize * OVERHEAD_DEPTH_SCALE,
     });
   }
+}
+
+// ---- First-person collision helpers ----
+function aabbCircleOverlap(cx, cz, minX, maxX, minZ, maxZ, radius) {
+  const closestX = Math.max(minX, Math.min(cx, maxX));
+  const closestZ = Math.max(minZ, Math.min(cz, maxZ));
+  const dx = cx - closestX;
+  const dz = cz - closestZ;
+  return (dx * dx + dz * dz) < (radius * radius);
+}
+
+function collidesWithMazeWalls(x, z) {
+  const radius = tileSize * PLAYER_RADIUS;
+  const minCellX = Math.floor((x - radius) / tileSize);
+  const maxCellX = Math.floor((x + radius) / tileSize);
+  const minCellZ = Math.floor((z - radius) / tileSize);
+  const maxCellZ = Math.floor((z + radius) / tileSize);
+  for (let cz = minCellZ; cz <= maxCellZ; cz++) {
+    for (let cx = minCellX; cx <= maxCellX; cx++) {
+      if (mazeGrid[cz]?.[cx] === 1) {
+        const minX = cx * tileSize;
+        const maxX = (cx + 1) * tileSize;
+        const minZ = cz * tileSize;
+        const maxZ = (cz + 1) * tileSize;
+        if (aabbCircleOverlap(x, z, minX, maxX, minZ, maxZ, radius)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function collidesWithClosedDoors(x, z) {
+  const radius = tileSize * PLAYER_RADIUS;
+  for (const d of doors) {
+    if (d.userData?.opened) continue;
+    const hw = (tileSize * 0.9) / 2; // doorWidth/2
+    const ht = (tileSize * 0.2) / 2; // doorThickness/2
+    const minX = d.position.x - (d.rotation.y ? ht : hw);
+    const maxX = d.position.x + (d.rotation.y ? ht : hw);
+    const minZ = d.position.z - (d.rotation.y ? hw : ht);
+    const maxZ = d.position.z + (d.rotation.y ? hw : ht);
+    if (aabbCircleOverlap(x, z, minX, maxX, minZ, maxZ, radius)) return true;
+  }
+  return false;
+}
+
+function hasCollisionAt(x, z) {
+  // Out of bounds is treated as walls
+  const w = mazeGrid[0].length * tileSize;
+  const h = mazeGrid.length * tileSize;
+  const margin = tileSize * PLAYER_RADIUS;
+  if (x < margin || z < margin || x > w - margin || z > h - margin) return true;
+  return collidesWithMazeWalls(x, z) || collidesWithClosedDoors(x, z);
 }
 
 function checkCollision(pos) {
@@ -459,8 +514,24 @@ function animate() {
     const worldMove = new THREE.Vector3();
     worldMove.addScaledVector(forward, -move.z);
     worldMove.addScaledVector(right, move.x);
-    const newPos = camera.position.clone().add(worldMove);
-    if (!checkCollision(newPos)) camera.position.copy(newPos);
+
+    if (pov === 'first') {
+      // Axis-aligned resolution against walls/doors
+      const current = camera.position.clone();
+      const tryX = current.x + worldMove.x;
+      const tryZ = current.z + worldMove.z;
+      // resolve X
+      let newX = current.x;
+      if (!hasCollisionAt(tryX, current.z)) newX = tryX;
+      // resolve Z (using possibly updated X)
+      let newZ = current.z;
+      if (!hasCollisionAt(newX, tryZ)) newZ = tryZ;
+      camera.position.set(newX, current.y, newZ);
+    } else {
+      // Overhead panning uses old behavior (no collision)
+      const newPos = camera.position.clone().add(worldMove);
+      camera.position.copy(newPos);
+    }
   }
 
   if (pov === 'overhead') {
