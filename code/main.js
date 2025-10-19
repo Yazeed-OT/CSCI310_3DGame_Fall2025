@@ -56,9 +56,9 @@ function init() {
   const ambient = new THREE.AmbientLight(0x303040, 0.9);
   scene.add(ambient);
 
-  // Floor
-  const floorGeo = new THREE.PlaneGeometry(mazeWidth * tileSize * 1.5, mazeDepth * tileSize * 1.5);
-  const floorMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+  // Floor (match maze bounds exactly)
+  const floorGeo = new THREE.PlaneGeometry(mazeWidth * tileSize, mazeDepth * tileSize);
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x0b0b0f });
   const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.rotation.x = -Math.PI / 2;
   floor.position.set((mazeWidth * tileSize) / 2, -0.5, (mazeDepth * tileSize) / 2);
@@ -157,10 +157,7 @@ function init() {
 
   window.addEventListener('resize', onWindowResize);
 
-  const grid = new THREE.GridHelper(Math.max(mazeWidth, mazeDepth) * tileSize * 2, Math.max(mazeWidth, mazeDepth));
-  grid.material.opacity = 0.15;
-  grid.material.transparent = true;
-  scene.add(grid);
+  // Removed decorative grid to keep the map clean and aligned
 
   overheadCenter.set((mazeWidth * tileSize) / 2, 0, (mazeDepth * tileSize) / 2);
   overheadOffset = new THREE.Vector3(0, overheadHeight, overheadDepth);
