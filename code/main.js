@@ -2,7 +2,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 import { mazeGrid } from './maze.js';
 
-let scene, camera, renderer, clock, playerVelocity;
+let scene, camera, renderer, clock;
 let walls = [];
 let timer = 60;
 let timerInterval;
@@ -46,7 +46,6 @@ function init() {
   document.body.appendChild(renderer.domElement);
 
   clock = new THREE.Clock();
-  playerVelocity = new THREE.Vector3();
 
   // Lighting
   const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);

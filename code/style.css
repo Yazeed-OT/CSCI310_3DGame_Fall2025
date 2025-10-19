@@ -20,9 +20,7 @@ body {
     transition: opacity 1s ease;
 }
 
-#gameCanvas {
-    display: none;
-}
+
 
 /* HUD hidden until game starts */
 #hud { display: none; }
