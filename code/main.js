@@ -124,21 +124,6 @@ function ensureDebugOverlay() {
   if (_debugEl) return _debugEl;
   _debugEl = document.createElement('div');
   _debugEl.id = 'debug-overlay';
-  _debugEl.style.cssText = [
-    'position:fixed',
-    'top:60px',
-    'left:12px',
-    'z-index:9999',
-    'font:12px/1.4 monospace',
-    'background:rgba(10,10,16,0.7)',
-    'border:1px solid rgba(120,160,255,0.35)',
-    'box-shadow:0 4px 16px rgba(0,0,0,0.35)',
-    'border-radius:8px',
-    'padding:8px 10px',
-    'color:#cfe1ff',
-    'max-width:38ch',
-    'white-space:pre-wrap'
-  ].join(';');
   document.body.appendChild(_debugEl);
   return _debugEl;
 }
