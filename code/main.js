@@ -368,8 +368,21 @@ function togglePOV() {
 
   if (pov === 'overhead') {
     pov = 'first';
-    camera.position.set(playerStart.x, playerStart.y, playerStart.z);
-    camera.lookAt(new THREE.Vector3(playerStart.x, 0, playerStart.z + 1));
+    // Place camera inside the maze at (1,1) cell center and face an open corridor
+    const startCell = { x: 1, z: 1 };
+    const toWorld = (cx, cz) => new THREE.Vector3((cx + 0.5) * tileSize, 1.7, (cz + 0.5) * tileSize);
+    const inBounds = (x, z) => x >= 0 && z >= 0 && x < mazeWidth && z < mazeDepth;
+    const dirs = [ {dx:0,dz:1}, {dx:1,dz:0}, {dx:0,dz:-1}, {dx:-1,dz:0} ]; // prefer looking forward into the maze first
+    const pos = toWorld(startCell.x, startCell.z);
+    camera.position.copy(pos);
+    let lookDir = { dx: 0, dz: 1 };
+    for (const d of dirs) {
+      const nx = startCell.x + d.dx;
+      const nz = startCell.z + d.dz;
+      if (inBounds(nx, nz) && mazeGrid[nz][nx] === 0) { lookDir = d; break; }
+    }
+    const lookTarget = new THREE.Vector3(pos.x + lookDir.dx * tileSize, pos.y, pos.z + lookDir.dz * tileSize);
+    camera.lookAt(lookTarget);
   } else {
     pov = 'overhead';
     overheadOffset = new THREE.Vector3(0, height, depth);
