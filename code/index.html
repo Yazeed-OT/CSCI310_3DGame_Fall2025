@@ -56,7 +56,9 @@
             // Reveal HUD
             document.body.classList.add('started');
             // Lazy-load the actual game code
-            import('./main.js').catch((e) => {
+            const qs = new URLSearchParams(window.location.search);
+            const bust = qs.has('debug') ? `?v=${Date.now()}` : '';
+            import(`./main.js${bust}`).catch((e) => {
                 console.error('Failed to start game:', e);
                 alert('Failed to start game. See console for details.');
             });
