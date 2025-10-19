@@ -216,26 +216,7 @@ function init() {
     }
   }
 
-  // Doors
-  const doorHeight = 2.8;
-  const doorThickness = tileSize * 0.2;
-  const doorWidth = tileSize * 0.9;
-
-  function makeDoor(tileX, tileZ, orientation = 'ns') {
-    const geom = new THREE.BoxGeometry(doorWidth, doorHeight, doorThickness);
-    const mat = new THREE.MeshStandardMaterial({ color: 0x223344, roughness: 0.6 });
-    const door = new THREE.Mesh(geom, mat);
-    door.position.set((tileX + 0.5) * tileSize, doorHeight / 2, (tileZ + 0.5) * tileSize);
-    if (orientation === 'ew') door.rotation.y = Math.PI / 2;
-    door.userData = { opening: false, opened: false };
-    scene.add(door);
-    doors.push(door);
-    walls.push(door);
-    return door;
-  }
-
-  // Only place a door at the exit; entrance remains open
-  makeDoor(exitTile.x, exitTile.z, 'ns');
+  // No doors: entrance and exit remain open passages
 
   // Print maze stats to console on load (dev utility)
   logMazeInfo(mazeGrid, {
@@ -246,24 +227,7 @@ function init() {
     exit: exitTile,
   });
 
-  document.addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() === 'e') {
-      const pos = camera.position;
-      let closest = null;
-      let closestDist = Infinity;
-      for (const d of doors) {
-        if (d.userData.opened) continue;
-        const dist = d.position.distanceTo(pos);
-        if (dist < closestDist) {
-          closestDist = dist;
-          closest = d;
-        }
-      }
-      if (closest && closestDist < tileSize * 1.4) {
-        closest.userData.opening = true;
-      }
-    }
-  });
+  // Removed door interaction (no doors present)
 
   startTimer();
 
@@ -421,28 +385,13 @@ function collidesWithMazeWalls(x, z) {
   return false;
 }
 
-function collidesWithClosedDoors(x, z) {
-  const radius = tileSize * PLAYER_RADIUS;
-  for (const d of doors) {
-    if (d.userData?.opened) continue;
-    const hw = (tileSize * 0.9) / 2; // doorWidth/2
-    const ht = (tileSize * 0.2) / 2; // doorThickness/2
-    const minX = d.position.x - (d.rotation.y ? ht : hw);
-    const maxX = d.position.x + (d.rotation.y ? ht : hw);
-    const minZ = d.position.z - (d.rotation.y ? hw : ht);
-    const maxZ = d.position.z + (d.rotation.y ? hw : ht);
-    if (aabbCircleOverlap(x, z, minX, maxX, minZ, maxZ, radius)) return true;
-  }
-  return false;
-}
-
 function hasCollisionAt(x, z) {
   // Out of bounds is treated as walls
   const w = mazeGrid[0].length * tileSize;
   const h = mazeGrid.length * tileSize;
   const margin = tileSize * PLAYER_RADIUS;
   if (x < margin || z < margin || x > w - margin || z > h - margin) return true;
-  return collidesWithMazeWalls(x, z) || collidesWithClosedDoors(x, z);
+  return collidesWithMazeWalls(x, z);
 }
 
 function checkCollision(pos) {
@@ -549,17 +498,7 @@ function animate() {
     }
   }
 
-  for (const d of doors) {
-    if (d.userData.opening && !d.userData.opened) {
-      d.position.y += 1.4 * delta;
-      if (d.position.y > 4.0) {
-        d.userData.opened = true;
-        d.userData.opening = false;
-        const idx = walls.indexOf(d);
-        if (idx !== -1) walls.splice(idx, 1);
-      }
-    }
-  }
+  // No door animation (doors removed)
 
   renderer.render(scene, camera);
 }
