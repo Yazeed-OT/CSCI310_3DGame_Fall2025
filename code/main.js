@@ -19,7 +19,7 @@ let playerStart = new THREE.Vector3(0, 1.6, 0);
 const FOV_DEGREES = 60; // was 75 (narrower FOV = closer look)
 const OVERHEAD_HEIGHT_SCALE = 0.9; // was 1.2 (closer)
 const OVERHEAD_DEPTH_SCALE = 0.5; // was 0.65 (closer)
-const OVERHEAD_LOOK_AT_Y = -2.0; // look slightly below center to nudge maze up
+const OVERHEAD_LOOK_AT_Y = -5.0; // look further below center to move maze higher
 
 // Enable console diagnostics only when URL has ?debug
 const DEBUG = new URLSearchParams(window.location.search).has('debug');
