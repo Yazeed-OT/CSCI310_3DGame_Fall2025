@@ -19,6 +19,7 @@ let playerStart = new THREE.Vector3(0, 1.6, 0);
 const FOV_DEGREES = 60; // was 75 (narrower FOV = closer look)
 const OVERHEAD_HEIGHT_SCALE = 0.9; // was 1.2 (closer)
 const OVERHEAD_DEPTH_SCALE = 0.5; // was 0.65 (closer)
+const OVERHEAD_LOOK_AT_Y = -2.0; // look slightly below center to nudge maze up
 
 // Enable console diagnostics only when URL has ?debug
 const DEBUG = new URLSearchParams(window.location.search).has('debug');
@@ -44,7 +45,7 @@ function init() {
 
   camera = new THREE.PerspectiveCamera(FOV_DEGREES, window.innerWidth / window.innerHeight, 0.1, 1500);
   camera.position.set(worldCenterX, overheadHeight, worldCenterZ + overheadDepth);
-  camera.lookAt(new THREE.Vector3(worldCenterX, 0, worldCenterZ));
+  camera.lookAt(new THREE.Vector3(worldCenterX, OVERHEAD_LOOK_AT_Y, worldCenterZ));
 
   playerStart.set(1.5 * tileSize, 1.6, 1.5 * tileSize);
 
@@ -204,7 +205,7 @@ function togglePOV() {
     overheadOffset = new THREE.Vector3(0, height, depth);
     const camPos = overheadCenter.clone().add(overheadOffset);
     camera.position.copy(camPos);
-    camera.lookAt(new THREE.Vector3(overheadCenter.x, 0, overheadCenter.z));
+  camera.lookAt(new THREE.Vector3(overheadCenter.x, OVERHEAD_LOOK_AT_Y, overheadCenter.z));
   }
   if (DEBUG) {
     console.log('[POV]', pov, 'cam', camera.position.toArray());
