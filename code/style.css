@@ -24,13 +24,17 @@ body {
 
 /* HUD hidden until game starts */
 #hud { display: none; }
-body.started #hud { display: block; }
-
-#scoreboard {
-    position: absolute;
-    top: 18px;
-    left: 24px;
+body.started #hud {
+    display: flex;
+    position: fixed;
+    top: 14px;
+    left: 18px;
+    gap: 12px;
+    z-index: 10;
 }
+
+#scoreboard { position: static; }
+#score { position: static; }
 
 .hud-pill {
     display: inline-flex;
