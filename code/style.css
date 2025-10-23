@@ -24,13 +24,17 @@ body {
 
 /* HUD hidden until game starts */
 #hud { display: none; }
-body.started #hud { display: block; }
-
-#scoreboard {
-    position: absolute;
-    top: 18px;
-    left: 24px;
+body.started #hud {
+    display: flex;
+    position: fixed;
+    top: 14px;
+    left: 18px;
+    gap: 12px;
+    z-index: 10;
 }
+
+#scoreboard { position: static; }
+#score { position: static; }
 
 .hud-pill {
     display: inline-flex;
@@ -67,3 +71,20 @@ body.started #hud { display: block; }
 
 /* Game Over modal */
 .modal { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: clamp(1.5rem, 5vw, 2.2rem); font-weight: 800; letter-spacing: 0.03em; padding: 14px 18px; background: rgba(0,0,0,0.65); border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 12px 40px rgba(0,0,0,0.45); border-radius: 12px; }
+
+/* Debug overlay (enabled via ?debug) */
+#debug-overlay {
+    position: fixed;
+    top: 60px;
+    left: 12px;
+    z-index: 9999;
+    font: 12px/1.4 monospace;
+    background: rgba(10,10,16,0.7);
+    border: 1px solid rgba(120,160,255,0.35);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+    border-radius: 8px;
+    padding: 8px 10px;
+    color: #cfe1ff;
+    max-width: 38ch;
+    white-space: pre-wrap;
+}
