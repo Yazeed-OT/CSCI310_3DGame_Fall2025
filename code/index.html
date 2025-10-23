@@ -7,31 +7,46 @@
     <meta name="description" content="3D Maze Escape Game (Three.js)" />
     <!-- Favicon under repo root /assets -->
     <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+    <!-- Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-    <div id="story-screen" role="region" aria-labelledby="game-title">
+    <div id="story-screen" role="dialog" aria-labelledby="game-title" aria-modal="true">
         <h1 id="game-title">Echoes of the Labyrinth</h1>
         <p id="story-text">
-            Welcome to Breakout 3D. You have now awaken inside a maze.
-            Collect the items you see and find the exit before the walls
-            close in.
-            <br /><br /><strong>Press ENTER to begin your escape</strong>
+            You awaken inside a shifting labyrinth. Find the exit before time runs out.
         </p>
+        <div class="controls">
+            <div class="controls-line"><strong>Move</strong>: Arrow Keys</div>
+            <div class="controls-line"><strong>Interact</strong>: E</div>
+            <div class="controls-line"><strong>POV</strong>: P</div>
+            <div class="controls-line"><strong>Reset</strong>: R</div>
+        </div>
+        <div class="cta">
+            <button id="start-btn" class="btn btn-primary" aria-label="Start game (press Enter)">Start</button>
+            <div class="hint">Press ENTER to start</div>
+        </div>
     </div>
 
     <!-- HUD elements expected by main.js -->
-    <div id="scoreboard">Time: <span id="timer">60</span></div>
-    <div id="game-over" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); font-size:2rem;">Game Over</div>
-    <button id="restart" style="display:none; position:absolute; top:60%; left:50%; transform:translateX(-50%);">Restart</button>
+    <div id="hud" aria-live="polite" aria-atomic="true">
+        <div id="scoreboard" class="hud-pill"><span class="label">Time</span> <span id="timer">60</span></div>
+        <div id="score" class="hud-pill"><span class="label">Score</span> <span id="score-value">0</span></div>
+        <div id="maps" class="hud-pill"><span class="label">Maps</span> <span id="maps-value">0</span></div>
+    </div>
+    <div id="game-over" class="modal">Game Over</div>
+    <button id="restart" class="btn btn-secondary">Restart</button>
 
-    <!-- Canvas is optional; main.js creates its own renderer canvas -->
-    <canvas id="gameCanvas" style="display:none;"></canvas>
+    <!-- Canvas removed (renderer injects its own canvas) -->
 
-    <!-- Start game on ENTER, then dynamically load main.js -->
+    <!-- Start game on ENTER or button click, then dynamically load main.js -->
     <script type="module">
         let started = false;
         const overlay = document.getElementById('story-screen');
+        const startBtn = document.getElementById('start-btn');
         function startGame() {
             if (started) return;
             started = true;
@@ -40,8 +55,12 @@
             overlay.style.pointerEvents = 'none';
             overlay.style.transition = 'opacity 300ms ease';
             setTimeout(() => (overlay.style.display = 'none'), 320);
+            // Reveal HUD
+            document.body.classList.add('started');
             // Lazy-load the actual game code
-            import('./main.js').catch((e) => {
+            const qs = new URLSearchParams(window.location.search);
+            const bust = qs.has('debug') ? `?v=${Date.now()}` : '';
+            import(`./main.js${bust}`).catch((e) => {
                 console.error('Failed to start game:', e);
                 alert('Failed to start game. See console for details.');
             });
@@ -51,6 +70,7 @@
                 startGame();
             }
         });
+        if (startBtn) startBtn.addEventListener('click', startGame);
     </script>
 </body>
 </html>
